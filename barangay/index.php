@@ -37,12 +37,12 @@ $barangayShowBack = false;
 
 require_once __DIR__ . '/../includes/header.php';
 ?>
-<section class="grid-2">
+<section class="grid-form-table">
     <div class="panel">
         <h2 class="panel-title">Add Barangay</h2>
-        <div class="actions actions-spread">
-            <p class="section-text">Use the quick form below or open the dedicated create page if you want a focused entry screen.</p>
-            <a class="btn btn-secondary" href="<?= h(app_url('/barangay/create.php')); ?>">Open Create Page</a>
+        <div style="display: flex; flex-direction: column; gap: 15px; margin-bottom: 25px;">
+            <p class="section-text" style="margin:0; line-height: 1.5; color: var(--text-muted);">Use the quick form below or open the dedicated create page if you want a focused entry screen.</p>
+            <a class="btn btn-secondary" style="justify-content: center;" href="<?= h(app_url('/barangay/create.php')); ?>">Open Create Page</a>
         </div>
         <?php require __DIR__ . '/form.php'; ?>
     </div>
@@ -50,7 +50,7 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="panel">
         <h2 class="panel-title">Barangay List</h2>
         <div class="table-wrap">
-            <table>
+            <table class="table-compact">
                 <thead>
                     <tr>
                         <th>ID</th>

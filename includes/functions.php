@@ -84,7 +84,7 @@ function land_use_community_types(): array
 
 function app_url(string $path = ''): string
 {
-    $base = '/Land%20Inventory%20System';
+    $base = '/Land-Invertory-System';
     return $base . $path;
 }
 

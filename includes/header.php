@@ -20,7 +20,10 @@ function is_active(string $needle, string $currentPath): string
 <body>
     <div class="app-shell">
         <aside class="sidebar">
-            <div>
+            <div class="sidebar-header">
+                <div class="logo-wrapper">
+                    <img src="<?= h(app_url('/assets/img/logo.png')); ?>" alt="Lungsod Ng Digos Logo" class="sidebar-logo">
+                </div>
                 <div class="brand">Land Inventory</div>
                 <p class="brand-subtitle">Offline Barangay Lot Monitoring</p>
             </div>

@@ -12,15 +12,15 @@ $results = [];
 $searchSummary = null;
 
 if ($query !== '') {
-    $search = '%' . $query . '%';
+    $search = $query . '%';
     $stmt = $mysqli->prepare("
         SELECT l.lot_no, l.survey_no, b.name AS barangay_name, l.area_sqm, l.status, l.current_claimant, l.tax_declarant
         FROM lots l
         INNER JOIN barangay b ON b.id = l.barangay_id
-        WHERE l.lot_no LIKE ? OR l.survey_no LIKE ? OR l.current_claimant LIKE ? OR l.tax_declarant LIKE ?
+        WHERE l.status LIKE ?
         ORDER BY l.id DESC
     ");
-    $stmt->bind_param('ssss', $search, $search, $search, $search);
+    $stmt->bind_param('s', $search);
     $stmt->execute();
     $result = $stmt->get_result();
     $results = $result->fetch_all(MYSQLI_ASSOC);
@@ -29,9 +29,10 @@ if ($query !== '') {
     $summaryStmt = $mysqli->prepare("
         SELECT COUNT(*) AS total_lots, COALESCE(SUM(l.area_sqm), 0) AS total_area_sqm
         FROM lots l
-        WHERE l.lot_no LIKE ? OR l.survey_no LIKE ? OR l.current_claimant LIKE ? OR l.tax_declarant LIKE ?
+        INNER JOIN barangay b ON b.id = l.barangay_id
+        WHERE l.status LIKE ?
     ");
-    $summaryStmt->bind_param('ssss', $search, $search, $search, $search);
+    $summaryStmt->bind_param('s', $search);
     $summaryStmt->execute();
     $summaryResult = $summaryStmt->get_result();
     $searchSummary = $summaryResult->fetch_assoc();
@@ -41,11 +42,16 @@ if ($query !== '') {
 require_once __DIR__ . '/../includes/header.php';
 ?>
 <section class="panel">
-        <h2 class="panel-title">Search by Lot No, Survey No, or Claimant</h2>
+        <h2 class="panel-title">Search by Lot Status</h2>
     <form method="get">
-        <div class="search-box">
-            <input type="text" name="q" value="<?= h($query); ?>" placeholder="Enter lot number, survey number, or claimant name" required>
-            <button class="btn btn-primary" type="submit">Search</button>
+        <div class="search-box" style="display: flex; gap: 10px; max-width: 600px;">
+            <select name="q" required style="flex: 1; padding: 12px 20px; font-size: 1rem; border-radius: 12px; background: rgba(20, 27, 45, 0.8); border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 4px 15px rgba(0,0,0,0.1); color: #fff; appearance: auto; cursor: pointer;">
+                <option value="" disabled <?= $query === '' ? 'selected' : ''; ?>>Select a status to search...</option>
+                <?php foreach (lot_statuses() as $status): ?>
+                    <option value="<?= h($status); ?>" <?= $query === $status ? 'selected' : ''; ?>><?= h(get_status_label($status)); ?></option>
+                <?php endforeach; ?>
+            </select>
+            <button class="btn btn-primary" type="submit" style="border-radius: 12px; padding: 12px 25px;">Search</button>
         </div>
     </form>
 </section>
@@ -66,10 +72,10 @@ require_once __DIR__ . '/../includes/header.php';
 <section class="panel">
     <h2 class="panel-title">Search Results</h2>
     <?php if ($query === ''): ?>
-        <div class="empty-state">Enter a lot number, survey number, or claimant name to search.</div>
+        <div class="empty-state">Enter a lot status (e.g., Titled, Conflict, Applied) to search.</div>
     <?php else: ?>
         <div class="table-wrap">
-            <table>
+            <table class="table-compact">
                 <thead>
                     <tr>
                         <th>Lot No</th>

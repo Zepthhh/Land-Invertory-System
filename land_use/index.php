@@ -48,15 +48,15 @@ $landUses = $landUseResult ? $landUseResult->fetch_all(MYSQLI_ASSOC) : [];
 
 require_once __DIR__ . '/../includes/header.php';
 ?>
-<section class="grid-2">
+<section class="grid-form-table">
     <div class="panel">
         <h2 class="panel-title">Add Land Use</h2>
         <?php if (!$barangays): ?>
             <div class="empty-state">Add a barangay first before recording land use deductions.</div>
         <?php else: ?>
-            <div class="actions actions-spread">
-                <p class="section-text">Quick entry is still available here, and the dedicated create page is ready if you prefer a separate form.</p>
-                <a class="btn btn-secondary" href="<?= h(app_url('/land_use/create.php')); ?>">Open Create Page</a>
+            <div style="display: flex; flex-direction: column; gap: 15px; margin-bottom: 25px;">
+                <p class="section-text" style="margin:0; line-height: 1.5; color: var(--text-muted);">Quick entry is still available here, and the dedicated create page is ready if you prefer a separate form.</p>
+                <a class="btn btn-secondary" style="justify-content: center;" href="<?= h(app_url('/land_use/create.php')); ?>">Open Create Page</a>
             </div>
             <?php require __DIR__ . '/form.php'; ?>
         <?php endif; ?>
@@ -65,7 +65,7 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="panel">
         <h2 class="panel-title">Land Use List</h2>
         <div class="table-wrap">
-            <table>
+            <table class="table-compact">
                 <thead>
                     <tr>
                         <th>ID</th>

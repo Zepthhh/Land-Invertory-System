@@ -45,8 +45,34 @@ $dashboardCards = [
     'Total Barangay Area' => format_number(sum_table_area($mysqli, 'barangay', 'total_area_sqm')) . ' sqm',
 ];
 
+
+
+$recentLotsResult = $mysqli->query("
+    SELECT l.lot_no, l.survey_no, b.name AS barangay_name, l.area_sqm, l.status
+    FROM lots l
+    INNER JOIN barangay b ON b.id = l.barangay_id
+    ORDER BY l.id DESC
+    LIMIT 5
+");
+$recentLots = $recentLotsResult ? $recentLotsResult->fetch_all(MYSQLI_ASSOC) : [];
+
 require_once __DIR__ . '/includes/header.php';
 ?>
+
+<div class="search-bar-wrapper" style="margin-bottom: 25px;">
+    <form method="get" action="<?= h(app_url('/reports/search.php')); ?>" style="margin: 0;">
+        <div class="search-box" style="display: flex; gap: 10px; max-width: 600px;">
+            <select name="q" required style="flex: 1; padding: 12px 20px; font-size: 1rem; border-radius: 12px; background: var(--panel-bg); border: 1px solid var(--panel-border); backdrop-filter: var(--glass-blur); box-shadow: 0 4px 15px rgba(0,0,0,0.1); color: #fff; appearance: auto; cursor: pointer;">
+                <option value="" disabled selected>Select a status to search...</option>
+                <?php foreach (lot_statuses() as $status): ?>
+                    <option value="<?= h($status); ?>"><?= h(get_status_label($status)); ?></option>
+                <?php endforeach; ?>
+            </select>
+            <button class="btn btn-primary" type="submit" style="border-radius: 12px; padding: 12px 25px;">Search</button>
+        </div>
+    </form>
+</div>
+
 <section class="cards">
     <?php foreach ($dashboardCards as $label => $value): ?>
         <div class="card">
@@ -59,31 +85,51 @@ require_once __DIR__ . '/includes/header.php';
 <section class="panel">
     <h2 class="panel-title">Barangay Land Summary</h2>
     <div class="table-wrap">
-        <table>
+        <table class="table-compact">
             <thead>
                 <tr>
                     <th>Barangay</th>
-                    <th>Total Area (sqm)</th>
-                    <th>Total Lots</th>
-                    <th>Total Lot Area (sqm)</th>
-                    <th>Alley/Road/Irrigation/Canal (sqm)</th>
-                    <th>Church/School Site/Plaza (sqm)</th>
-                    <th>Total Deductions (sqm)</th>
-                    <th>Remaining Balance (sqm)</th>
+                    <th>Total Area<br><small>(sqm)</small></th>
+                    <th>Lots</th>
+                    <th>Lot Area<br><small>(sqm)</small></th>
+                    <th>Infra. Deductions<br><small>Alley/Road/Canal</small></th>
+                    <th>Community Deductions<br><small>Church/School/Plaza</small></th>
+                    <th>Total Deductions<br><small>(sqm)</small></th>
+                    <th>Remaining Balance<br><small>(sqm)</small></th>
                 </tr>
             </thead>
             <tbody>
                 <?php if ($barangaySummaries): ?>
-                    <?php foreach ($barangaySummaries as $row): ?>
+                    <?php foreach ($barangaySummaries as $row): 
+                        $total_area = (float) $row['total_area_sqm'];
+                        $remaining = (float) $row['remaining_balance'];
+                        $utilized = $total_area - $remaining;
+                        $percent_utilized = ($total_area > 0) ? ($utilized / $total_area) * 100 : 0;
+                        
+                        $progress_class = '';
+                        if ($percent_utilized > 90) $progress_class = 'danger';
+                        elseif ($percent_utilized > 75) $progress_class = 'warning';
+                    ?>
                         <tr>
-                            <td><?= h($row['name']); ?></td>
-                            <td><?= format_number((float) $row['total_area_sqm']); ?></td>
+                            <td><strong><?= h($row['name']); ?></strong></td>
+                            <td><?= format_number($total_area); ?></td>
                             <td><?= h((string) $row['total_lots']); ?></td>
                             <td><?= format_number((float) $row['total_lot_area']); ?></td>
                             <td><?= format_number((float) $row['infrastructure_area']); ?></td>
                             <td><?= format_number((float) $row['community_area']); ?></td>
                             <td><?= format_number((float) $row['total_land_use']); ?></td>
-                            <td><?= format_number((float) $row['remaining_balance']); ?></td>
+                            <td style="min-width: 200px;">
+                                <div style="font-weight: 600; color: <?= $remaining < 0 ? 'var(--danger)' : 'var(--success)' ?>;">
+                                    <?= format_number($remaining); ?> sqm
+                                </div>
+                                <div class="progress-container">
+                                    <div class="progress-bar <?= $progress_class ?>" style="width: <?= min(100, max(0, $percent_utilized)) ?>%;"></div>
+                                </div>
+                                <div class="progress-text">
+                                    <span>Used: <?= format_percent($percent_utilized) ?></span>
+                                    <span>Free: <?= format_percent(100 - $percent_utilized) ?></span>
+                                </div>
+                            </td>
                         </tr>
                     <?php endforeach; ?>
                 <?php else: ?>
@@ -96,52 +142,38 @@ require_once __DIR__ . '/includes/header.php';
     </div>
 </section>
 
-<section class="grid-2">
-    <div class="panel">
-        <h2 class="panel-title">Quick Search</h2>
-        <form method="get" action="<?= h(app_url('/reports/search.php')); ?>">
-            <div class="search-box">
-                <input type="text" name="q" placeholder="Search by lot number or survey number" required>
-                <button class="btn btn-primary" type="submit">Search</button>
-            </div>
-        </form>
-    </div>
-
-    <div class="panel">
-        <h2 class="panel-title">Status Overview</h2>
-        <div class="table-wrap">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Status</th>
-                        <th>Total Lots</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php
-                    $statusResult = $mysqli->query("
-                        SELECT status, COUNT(*) AS total
-                        FROM lots
-                        GROUP BY status
-                        ORDER BY FIELD(status, 'Unapplied', 'Applied', 'Titled', 'Conflict')
-                    ");
-                    $statuses = $statusResult ? $statusResult->fetch_all(MYSQLI_ASSOC) : [];
-                    ?>
-                    <?php if ($statuses): ?>
-                        <?php foreach ($statuses as $status): ?>
-                            <tr>
-                                <td><span class="<?= h(get_status_badge_class($status['status'])); ?>"><?= h(get_status_label($status['status'])); ?></span></td>
-                                <td><?= h((string) $status['total']); ?></td>
-                            </tr>
-                        <?php endforeach; ?>
-                    <?php else: ?>
+<section class="panel">
+    <h2 class="panel-title">Recent Lot Registrations</h2>
+    <div class="table-wrap">
+        <table class="table-compact">
+            <thead>
+                <tr>
+                    <th>Lot No</th>
+                    <th>Survey No</th>
+                    <th>Barangay</th>
+                    <th>Area (sqm)</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php if ($recentLots): ?>
+                    <?php foreach ($recentLots as $lot): ?>
                         <tr>
-                            <td colspan="2">No lot statuses recorded yet.</td>
+                            <td><?= h($lot['lot_no']); ?></td>
+                            <td><?= h($lot['survey_no']); ?></td>
+                            <td><?= h($lot['barangay_name']); ?></td>
+                            <td><?= format_number((float) $lot['area_sqm']); ?></td>
+                            <td><span class="<?= h(get_status_badge_class($lot['status'])); ?>"><?= h(get_status_label($lot['status'])); ?></span></td>
                         </tr>
-                    <?php endif; ?>
-                </tbody>
-            </table>
-        </div>
+                    <?php endforeach; ?>
+                <?php else: ?>
+                    <tr>
+                        <td colspan="5">No lots registered yet.</td>
+                    </tr>
+                <?php endif; ?>
+            </tbody>
+        </table>
     </div>
 </section>
+
 <?php require_once __DIR__ . '/includes/footer.php'; ?>

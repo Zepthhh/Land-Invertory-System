@@ -5,7 +5,7 @@ $host = '127.0.0.1';
 $port = 3306;
 $dbname = 'Land Inventory';
 $username = 'root';
-$password = 'root';
+$password = '';
 
 $mysqli = new mysqli($host, $username, $password, $dbname, $port);
 

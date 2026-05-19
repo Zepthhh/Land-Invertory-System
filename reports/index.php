@@ -69,6 +69,17 @@ $identifiedLots = $identifiedLotsResult ? $identifiedLotsResult->fetch_all(MYSQL
 
 require_once __DIR__ . '/../includes/header.php';
 ?>
+
+<div class="print-header">
+    <img src="<?= h(app_url('/assets/img/logo.png')); ?>" alt="Lungsod Ng Digos Logo">
+    <div class="print-header-text">
+        <p>Republic of the Philippines</p>
+        <p><strong>CITY ENVIRONMENT AND NATURAL RESOURCES</strong></p>
+        <p>Lungsod ng Digos</p>
+        <h2>OFFICIAL LAND INVENTORY REPORT</h2>
+    </div>
+</div>
+
 <section class="cards">
     <div class="card">
         <div class="card-label">Whole Area (sqm)</div>
@@ -88,28 +99,43 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
 </section>
 
-<section class="panel">
+<div class="actions-spread">
+    <h2 class="panel-title" style="margin: 0;">Comprehensive Reports</h2>
     <div class="inline-actions">
-        <a class="btn btn-secondary" href="<?= h(app_url('/reports/search.php')); ?>">Open Search</a>
+        <button class="btn btn-primary" onclick="window.print()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 5px;">
+                <polyline points="6 9 6 2 18 2 18 9"></polyline>
+                <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+                <rect x="6" y="14" width="12" height="8"></rect>
+            </svg>
+            Print Report
+        </button>
+        <a class="btn btn-secondary" href="<?= h(app_url('/reports/search.php')); ?>">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 5px;">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            Search Records
+        </a>
     </div>
-</section>
+</div>
 
 <section class="panel">
     <h2 class="panel-title">Barangay Summary</h2>
     <p class="section-text">Each barangay shows total square meters, total lots, grouped deductions for `Alley/Road/Irrigation/Canal` and `Church/School Site/Plaza`, then the remaining area after deductions and identified lots.</p>
     <div class="table-wrap">
-        <table>
+        <table class="table-compact">
             <thead>
                 <tr>
                     <th>Barangay</th>
-                    <th>Whole Area (sqm)</th>
-                    <th>Total Lots</th>
-                    <th>Identified Lot Area (sqm)</th>
-                    <th>Alley/Road/Irrigation/Canal (sqm)</th>
-                    <th>Church/School Site/Plaza (sqm)</th>
-                    <th>Total Deductions (sqm)</th>
-                    <th>Area After Deductions (sqm)</th>
-                    <th>Remaining Balance (sqm)</th>
+                    <th>Whole Area<br><small>(sqm)</small></th>
+                    <th>Lots</th>
+                    <th>Lot Area<br><small>(sqm)</small></th>
+                    <th>Infra. Deductions<br><small>Alley/Road/Canal</small></th>
+                    <th>Community Deductions<br><small>Church/School/Plaza</small></th>
+                    <th>Total Deductions<br><small>(sqm)</small></th>
+                    <th>After Deductions<br><small>(sqm)</small></th>
+                    <th>Remaining Balance<br><small>(sqm)</small></th>
                 </tr>
             </thead>
             <tbody>
@@ -119,9 +145,16 @@ require_once __DIR__ . '/../includes/header.php';
                         $wholeBarangayArea = (float) $row['total_area_sqm'];
                         $areaAfterDeductions = (float) $row['area_after_land_use'];
                         $remainingBalance = (float) $row['remaining_balance'];
+                        
+                        $utilized = $wholeBarangayArea - $remainingBalance;
+                        $percent_utilized = ($wholeBarangayArea > 0) ? ($utilized / $wholeBarangayArea) * 100 : 0;
+                        
+                        $progress_class = '';
+                        if ($percent_utilized > 90) $progress_class = 'danger';
+                        elseif ($percent_utilized > 75) $progress_class = 'warning';
                         ?>
                         <tr>
-                            <td><?= h($row['name']); ?></td>
+                            <td><strong><?= h($row['name']); ?></strong></td>
                             <td><?= format_number($wholeBarangayArea); ?></td>
                             <td><?= h((string) $row['total_lots']); ?></td>
                             <td><?= format_number((float) $row['total_lot_area']); ?></td>
@@ -129,7 +162,18 @@ require_once __DIR__ . '/../includes/header.php';
                             <td><?= format_number((float) $row['community_area']); ?></td>
                             <td><?= format_number((float) $row['total_land_use']); ?></td>
                             <td><?= format_number($areaAfterDeductions); ?></td>
-                            <td><?= format_number($remainingBalance); ?></td>
+                            <td style="min-width: 200px;">
+                                <div style="font-weight: 600; color: <?= $remainingBalance < 0 ? 'var(--danger)' : 'var(--success)' ?>;">
+                                    <?= format_number($remainingBalance); ?> sqm
+                                </div>
+                                <div class="progress-container">
+                                    <div class="progress-bar <?= $progress_class ?>" style="width: <?= min(100, max(0, $percent_utilized)) ?>%;"></div>
+                                </div>
+                                <div class="progress-text">
+                                    <span>Used: <?= format_percent($percent_utilized) ?></span>
+                                    <span>Free: <?= format_percent(100 - $percent_utilized) ?></span>
+                                </div>
+                            </td>
                         </tr>
                     <?php endforeach; ?>
                 <?php else: ?>
@@ -146,14 +190,14 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="panel">
         <h2 class="panel-title">Survey Total Per Survey Number</h2>
         <div class="table-wrap">
-            <table>
+            <table class="table-compact">
                 <thead>
                     <tr>
                         <th>Survey No</th>
-                        <th>Total Lots</th>
-                        <th>Total Area (sqm)</th>
-                        <th>Whole Area Remaining (sqm)</th>
-                        <th>Share of Whole Area</th>
+                        <th>Lots</th>
+                        <th>Total Area<br><small>(sqm)</small></th>
+                        <th>Whole Remaining<br><small>(sqm)</small></th>
+                        <th>Share %</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -185,7 +229,7 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="panel">
         <h2 class="panel-title">Status Count</h2>
         <div class="table-wrap">
-            <table>
+            <table class="table-compact">
                 <thead>
                     <tr>
                         <th>Status</th>
@@ -215,7 +259,7 @@ require_once __DIR__ . '/../includes/header.php';
     <h2 class="panel-title">Identify Lot and Area (sqm)</h2>
     <p class="section-text">This report lists the identified lot number, its survey number, claimant, exact area in square meters, and current status.</p>
     <div class="table-wrap">
-        <table>
+        <table class="table-compact">
             <thead>
                 <tr>
                     <th>Lot No</th>

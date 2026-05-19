@@ -123,14 +123,25 @@ require_once __DIR__ . '/../includes/header.php';
 <section class="panel">
     <h2 class="panel-title">Import RLTA Excel File</h2>
     <p class="section-text">Upload an `.xlsx` file with barangay sheets. The system will rebuild the barangay and lot records, then your reports will automatically show total area per barangay, total lots, grouped deductions for `Alley/Road/Irrigation/Canal`, grouped deductions for `Church/School Site/Plaza`, and the remaining square meters.</p>
-    <form method="post" enctype="multipart/form-data">
-        <div class="upload-box">
-            <label for="excel_file">Excel File (.xlsx)</label>
+    <form method="post" enctype="multipart/form-data" id="importForm">
+        <div class="drag-drop-zone" id="dropZone">
             <input type="file" id="excel_file" name="excel_file" accept=".xlsx" required>
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="17 8 12 3 7 8"></polyline>
+                <line x1="12" y1="3" x2="12" y2="15"></line>
+            </svg>
+            <h3 style="margin: 0; color: #fff;" id="fileName">Drag & Drop your Excel file here</h3>
+            <p>or click to browse from your computer (.xlsx only)</p>
         </div>
-        <div class="actions">
-            <button class="btn btn-primary" type="submit">Import Excel</button>
-            <a class="btn btn-secondary" href="<?= h(app_url('/reports/index.php')); ?>">Open Reports</a>
+        <div class="actions" style="justify-content: center; margin-top: 25px;">
+            <button class="btn btn-primary" type="submit" id="submitBtn" style="min-width: 200px; padding: 14px; border-radius: 12px; font-size: 1.1rem;">
+                <span id="btnText">Begin Import</span>
+                <div class="uploading-overlay" id="spinner">
+                    <div class="spinner"></div> Importing Data...
+                </div>
+            </button>
+            <a class="btn btn-secondary" href="<?= h(app_url('/reports/index.php')); ?>" id="cancelBtn" style="padding: 14px 20px; border-radius: 12px;">Cancel</a>
         </div>
     </form>
 </section>
@@ -145,27 +156,47 @@ require_once __DIR__ . '/../includes/header.php';
 <section class="panel">
     <h2 class="panel-title">Barangay Calculation Preview</h2>
     <div class="table-wrap">
-        <table>
+        <table class="table-compact">
             <thead>
                 <tr>
                     <th>Barangay</th>
-                    <th>Total Area (sqm)</th>
-                    <th>Total Lots</th>
-                    <th>Alley/Road/Irrigation/Canal (sqm)</th>
-                    <th>Church/School Site/Plaza (sqm)</th>
-                    <th>Area After Deductions (sqm)</th>
+                    <th>Total Area<br><small>(sqm)</small></th>
+                    <th>Lots</th>
+                    <th>Infra. Deductions<br><small>Alley/Road/Canal</small></th>
+                    <th>Community Deductions<br><small>Church/School/Plaza</small></th>
+                    <th>After Deductions<br><small>(sqm)</small></th>
                 </tr>
             </thead>
             <tbody>
                 <?php if ($barangaySummary): ?>
-                    <?php foreach ($barangaySummary as $row): ?>
+                    <?php foreach ($barangaySummary as $row): 
+                        $total_area = (float) $row['total_area_sqm'];
+                        $remaining = (float) $row['area_after_deductions'];
+                        $utilized = $total_area - $remaining;
+                        $percent_utilized = ($total_area > 0) ? ($utilized / $total_area) * 100 : 0;
+                        
+                        $progress_class = '';
+                        if ($percent_utilized > 90) $progress_class = 'danger';
+                        elseif ($percent_utilized > 75) $progress_class = 'warning';
+                    ?>
                         <tr>
-                            <td><?= h($row['name']); ?></td>
-                            <td><?= format_number((float) $row['total_area_sqm']); ?></td>
+                            <td><strong><?= h($row['name']); ?></strong></td>
+                            <td><?= format_number($total_area); ?></td>
                             <td><?= h((string) $row['total_lots']); ?></td>
                             <td><?= format_number((float) $row['infrastructure_area']); ?></td>
                             <td><?= format_number((float) $row['community_area']); ?></td>
-                            <td><?= format_number((float) $row['area_after_deductions']); ?></td>
+                            <td style="min-width: 200px;">
+                                <div style="font-weight: 600; color: <?= $remaining < 0 ? 'var(--danger)' : 'var(--success)' ?>;">
+                                    <?= format_number($remaining); ?> sqm
+                                </div>
+                                <div class="progress-container">
+                                    <div class="progress-bar <?= $progress_class ?>" style="width: <?= min(100, max(0, $percent_utilized)) ?>%;"></div>
+                                </div>
+                                <div class="progress-text">
+                                    <span>Used: <?= format_percent($percent_utilized) ?></span>
+                                    <span>Free: <?= format_percent(100 - $percent_utilized) ?></span>
+                                </div>
+                            </td>
                         </tr>
                     <?php endforeach; ?>
                 <?php else: ?>
@@ -177,4 +208,68 @@ require_once __DIR__ . '/../includes/header.php';
         </table>
     </div>
 </section>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('excel_file');
+    const fileName = document.getElementById('fileName');
+    const importForm = document.getElementById('importForm');
+    const submitBtn = document.getElementById('submitBtn');
+    const btnText = document.getElementById('btnText');
+    const spinner = document.getElementById('spinner');
+    const cancelBtn = document.getElementById('cancelBtn');
+
+    // Drag and Drop Effects
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, preventDefaults, false);
+    });
+
+    function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+        dropZone.addEventListener(eventName, () => dropZone.classList.add('dragover'), false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, () => dropZone.classList.remove('dragover'), false);
+    });
+
+    dropZone.addEventListener('drop', handleDrop, false);
+
+    function handleDrop(e) {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        if (files.length) {
+            fileInput.files = files;
+            updateFileName();
+        }
+    }
+
+    fileInput.addEventListener('change', updateFileName);
+
+    function updateFileName() {
+        if (fileInput.files.length > 0) {
+            fileName.textContent = fileInput.files[0].name;
+            fileName.style.color = 'var(--primary)';
+        }
+    }
+
+    // Submit Animation
+    importForm.addEventListener('submit', function() {
+        submitBtn.disabled = true;
+        submitBtn.style.opacity = '0.8';
+        submitBtn.style.cursor = 'wait';
+        cancelBtn.style.pointerEvents = 'none';
+        cancelBtn.style.opacity = '0.5';
+        
+        btnText.style.display = 'none';
+        spinner.style.display = 'flex';
+    });
+});
+</script>
+
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>
