@@ -1,6 +1,30 @@
 CREATE DATABASE IF NOT EXISTS `Land Inventory`;
 USE `Land Inventory`;
 
+DROP TABLE IF EXISTS `audit_logs`;
+DROP TABLE IF EXISTS `users`;
+
+CREATE TABLE `users` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `username` VARCHAR(50) UNIQUE NOT NULL,
+    `password` VARCHAR(255) NOT NULL,
+    `role` ENUM('Admin', 'Editor', 'Viewer') NOT NULL DEFAULT 'Viewer'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE `audit_logs` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `user_id` INT NULL,
+    `username` VARCHAR(50) NULL,
+    `action` VARCHAR(255) NOT NULL,
+    `details` TEXT NULL,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT INTO `users` (`username`, `password`, `role`) VALUES
+('admin', '$2y$10$R4tSxdT9nI7dKBMOgtqQKeTix0GqnTIiugJPMUAX8OanncAUxd.IC', 'Admin'),
+('editor', '$2y$10$3T97RjOIQF4t7yOuiBEGZ.VehJC1NlmGzHX6Z4PLd0DxtLopogCXS', 'Editor'),
+('viewer', '$2y$10$lHtw4WjaP6xl6f4EUXKmkuH/GnCm9Fvu0qWKgbqVkJRccs0PQEN7.', 'Viewer');
+
 DROP TABLE IF EXISTS `land_use`;
 DROP TABLE IF EXISTS `lots`;
 DROP TABLE IF EXISTS `barangay`;

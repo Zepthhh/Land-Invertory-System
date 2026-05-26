@@ -114,6 +114,16 @@ function sum_table_area(mysqli $mysqli, string $table, string $column = 'area_sq
     return (float) ($row['total'] ?? 0);
 }
 
+function get_status_icon(string $status): string
+{
+    return match ($status) {
+        'Conflict' => '⚠️',
+        'Titled' => '✅',
+        'Applied' => '📄',
+        default => '🔍',
+    };
+}
+
 function get_status_badge_class(string $status): string
 {
     return match ($status) {
@@ -123,3 +133,34 @@ function get_status_badge_class(string $status): string
         default => 'badge amber',
     };
 }
+
+function log_action(mysqli $mysqli, string $action, ?string $details = null): void
+{
+    // Logging deactivated for local mode
+}
+
+function is_logged_in(): bool
+{
+    return true;
+}
+
+function require_login(): void
+{
+    // Bypass for local-only access
+}
+
+function get_current_user_role(): ?string
+{
+    return 'Admin'; // Always Admin for local-only access
+}
+
+function get_current_username(): ?string
+{
+    return 'Local Admin';
+}
+
+function require_role(array|string $roles): void
+{
+    // Bypass for local-only access
+}
+

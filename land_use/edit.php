@@ -4,6 +4,8 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../includes/functions.php';
 
+require_role(['Admin', 'Editor']);
+
 $id = (int) ($_GET['id'] ?? $_POST['id'] ?? 0);
 if ($id <= 0) {
     set_flash('error', 'Invalid land use entry selected.');
@@ -28,6 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmt->execute();
     $stmt->close();
 
+    log_action($mysqli, 'Edit Land Use', "Updated Land Use: ID: $id, Type: $type, Area: $area sqm, Barangay ID: $barangayId.");
     set_flash('success', 'Land use entry updated successfully.');
     redirect(app_url('/land_use/index.php'));
 }

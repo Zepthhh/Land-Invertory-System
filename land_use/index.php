@@ -5,6 +5,7 @@ require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../includes/functions.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    require_role(['Admin', 'Editor']);
     $barangayId = (int) ($_POST['barangay_id'] ?? 0);
     $type = $_POST['type'] ?? '';
     $area = (float) ($_POST['area_sqm'] ?? 0);
@@ -20,6 +21,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmt->execute();
     $stmt->close();
 
+    log_action($mysqli, 'Create Land Use', "Created Land Use: $type ($area sqm) in Barangay ID $barangayId.");
     set_flash('success', 'Land use entry added successfully.');
     redirect(app_url('/land_use/index.php'));
 }
@@ -46,12 +48,18 @@ $landUseResult = $mysqli->query("
 ");
 $landUses = $landUseResult ? $landUseResult->fetch_all(MYSQLI_ASSOC) : [];
 
+$currentUserRole = get_current_user_role();
+
 require_once __DIR__ . '/../includes/header.php';
 ?>
 <section class="grid-form-table">
     <div class="panel">
         <h2 class="panel-title">Add Land Use</h2>
-        <?php if (!$barangays): ?>
+        <?php if ($currentUserRole === 'Viewer'): ?>
+            <div class="empty-state-fancy" style="padding: 20px 10px;">
+                <p style="color: var(--text-muted);">You are logged in as a <strong>Viewer</strong>. You do not have permission to add or modify land use entries.</p>
+            </div>
+        <?php elseif (!$barangays): ?>
             <div class="empty-state">Add a barangay first before recording land use deductions.</div>
         <?php else: ?>
             <div style="display: flex; flex-direction: column; gap: 15px; margin-bottom: 25px;">
@@ -85,11 +93,15 @@ require_once __DIR__ . '/../includes/header.php';
                                 <td><?= format_number((float) $entry['area_sqm']); ?></td>
                                 <td>
                                     <div class="inline-actions">
-                                        <a class="btn btn-secondary" href="<?= h(app_url('/land_use/edit.php?id=' . $entry['id'])); ?>">Edit</a>
-                                        <form method="post" action="<?= h(app_url('/land_use/delete.php')); ?>" onsubmit="return confirm('Delete this land use entry?');">
-                                            <input type="hidden" name="id" value="<?= h((string) $entry['id']); ?>">
-                                            <button class="btn btn-danger" type="submit">Delete</button>
-                                        </form>
+                                        <?php if ($currentUserRole !== 'Viewer'): ?>
+                                            <a class="btn btn-secondary" href="<?= h(app_url('/land_use/edit.php?id=' . $entry['id'])); ?>">Edit</a>
+                                            <form method="post" action="<?= h(app_url('/land_use/delete.php')); ?>" onsubmit="return confirm('Delete this land use entry?');">
+                                                <input type="hidden" name="id" value="<?= h((string) $entry['id']); ?>">
+                                                <button class="btn btn-danger" type="submit">Delete</button>
+                                            </form>
+                                        <?php else: ?>
+                                            <span style="color: var(--text-muted); font-size: 0.85rem;">None</span>
+                                        <?php endif; ?>
                                     </div>
                                 </td>
                             </tr>

@@ -5,6 +5,7 @@ require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../includes/functions.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    require_role(['Admin', 'Editor']);
     $name = trim($_POST['name'] ?? '');
     $totalArea = (float) ($_POST['total_area_sqm'] ?? 0);
 
@@ -18,6 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmt->execute();
     $stmt->close();
 
+    log_action($mysqli, 'Create Barangay', "Created Barangay: $name, Area: $totalArea sqm.");
     set_flash('success', 'Barangay added successfully.');
     redirect(app_url('/barangay/index.php'));
 }
@@ -35,16 +37,24 @@ $barangayFormValues = [
 $barangaySubmitLabel = 'Save Barangay';
 $barangayShowBack = false;
 
+$currentUserRole = get_current_user_role();
+
 require_once __DIR__ . '/../includes/header.php';
 ?>
 <section class="grid-form-table">
     <div class="panel">
         <h2 class="panel-title">Add Barangay</h2>
-        <div style="display: flex; flex-direction: column; gap: 15px; margin-bottom: 25px;">
-            <p class="section-text" style="margin:0; line-height: 1.5; color: var(--text-muted);">Use the quick form below or open the dedicated create page if you want a focused entry screen.</p>
-            <a class="btn btn-secondary" style="justify-content: center;" href="<?= h(app_url('/barangay/create.php')); ?>">Open Create Page</a>
-        </div>
-        <?php require __DIR__ . '/form.php'; ?>
+        <?php if ($currentUserRole === 'Viewer'): ?>
+            <div class="empty-state-fancy" style="padding: 20px 10px;">
+                <p style="color: var(--text-muted);">You are logged in as a <strong>Viewer</strong>. You do not have permission to add or modify barangay records.</p>
+            </div>
+        <?php else: ?>
+            <div style="display: flex; flex-direction: column; gap: 15px; margin-bottom: 25px;">
+                <p class="section-text" style="margin:0; line-height: 1.5; color: var(--text-muted);">Use the quick form below or open the dedicated create page if you want a focused entry screen.</p>
+                <a class="btn btn-secondary" style="justify-content: center;" href="<?= h(app_url('/barangay/create.php')); ?>">Open Create Page</a>
+            </div>
+            <?php require __DIR__ . '/form.php'; ?>
+        <?php endif; ?>
     </div>
 
     <div class="panel">
@@ -68,11 +78,15 @@ require_once __DIR__ . '/../includes/header.php';
                                 <td><?= format_number((float) $barangay['total_area_sqm']); ?></td>
                                 <td>
                                     <div class="inline-actions">
-                                        <a class="btn btn-secondary" href="<?= h(app_url('/barangay/edit.php?id=' . $barangay['id'])); ?>">Edit</a>
-                                        <form method="post" action="<?= h(app_url('/barangay/delete.php')); ?>" onsubmit="return confirm('Delete this barangay? Related lots and land use entries will also be removed.');">
-                                            <input type="hidden" name="id" value="<?= h((string) $barangay['id']); ?>">
-                                            <button class="btn btn-danger" type="submit">Delete</button>
-                                        </form>
+                                        <?php if ($currentUserRole !== 'Viewer'): ?>
+                                            <a class="btn btn-secondary" href="<?= h(app_url('/barangay/edit.php?id=' . $barangay['id'])); ?>">Edit</a>
+                                            <form method="post" action="<?= h(app_url('/barangay/delete.php')); ?>" onsubmit="return confirm('Delete this barangay? Related lots and land use entries will also be removed.');">
+                                                <input type="hidden" name="id" value="<?= h((string) $barangay['id']); ?>">
+                                                <button class="btn btn-danger" type="submit">Delete</button>
+                                            </form>
+                                        <?php else: ?>
+                                            <span style="color: var(--text-muted); font-size: 0.85rem;">None</span>
+                                        <?php endif; ?>
                                     </div>
                                 </td>
                             </tr>

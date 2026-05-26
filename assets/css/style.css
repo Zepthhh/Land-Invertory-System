@@ -85,27 +85,29 @@ a {
 .logo-wrapper::after {
     content: '';
     position: absolute;
-    top: -50%;
-    left: -50%;
-    width: 200%;
-    height: 200%;
+    top: 0;
+    left: -150%;
+    width: 60%;
+    height: 100%;
     background: linear-gradient(
-        to bottom right,
+        90deg,
         rgba(255, 255, 255, 0) 0%,
-        rgba(255, 255, 255, 0) 40%,
-        rgba(255, 255, 255, 0.6) 50%,
-        rgba(255, 255, 255, 0) 60%,
+        rgba(255, 255, 255, 0.455) 50%,
         rgba(255, 255, 255, 0) 100%
     );
-    transform: rotate(45deg);
-    animation: glassyShine 4s infinite linear;
+    transform: skewX(-25deg);
+    animation: logoShine 4s infinite ease-in-out;
     pointer-events: none;
     z-index: 2;
 }
 
-@keyframes glassyShine {
-    0% { transform: translate(-50%, -50%) rotate(45deg); }
-    100% { transform: translate(50%, 50%) rotate(45deg); }
+@keyframes logoShine {
+    0% {
+        left: -150%;
+    }
+    100% {
+        left: 150%;
+    }
 }
 
 .sidebar-logo {
@@ -120,11 +122,33 @@ a {
 .brand {
     font-size: 1.4rem;
     font-weight: 800;
-    background: linear-gradient(135deg, #34d399, #10b981);
+    display: inline-block;
+    background: linear-gradient(
+        120deg, 
+        #34d399 0%, 
+        #10b981 35%, 
+        #50e3c2 45%, 
+        #ffffff 50%, 
+        #50e3c2 55%, 
+        #10b981 65%, 
+        #34d399 100%
+    );
+    background-size: 250% 100%;
+    background-repeat: repeat;
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
     letter-spacing: 0.5px;
+    animation: textShine 4s ease-in-out infinite;
+}
+
+@keyframes textShine {
+    0% {
+        background-position: 180% 0;
+    }
+    100% {
+        background-position: -80% 0;
+    }
 }
 
 .brand-subtitle {

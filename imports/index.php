@@ -12,6 +12,8 @@ $importOutput = '';
 $inlineAlert = null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $tempUpload = '';
+    $xlsxPath = '';
     if (!isset($_FILES['excel_file']) || !is_array($_FILES['excel_file'])) {
         $inlineAlert = ['type' => 'error', 'message' => 'Please choose an Excel file to import.'];
     }
@@ -148,8 +150,42 @@ require_once __DIR__ . '/../includes/header.php';
 
 <?php if ($importOutput !== ''): ?>
     <section class="panel">
-        <h2 class="panel-title">Import Output</h2>
-        <pre class="output-box"><?= h($importOutput); ?></pre>
+        <h2 class="panel-title">Import Sync Logs</h2>
+        <div class="log-output-container" style="display: flex; flex-direction: column; gap: 8px;">
+            <?php
+            $logLines = explode(PHP_EOL, trim($importOutput));
+            foreach ($logLines as $line):
+                $line = trim($line);
+                if ($line === '') continue;
+                
+                $logBg = 'rgba(255,255,255,0.03)';
+                $logBorder = 'rgba(255,255,255,0.08)';
+                $logColor = '#fff';
+                $logIcon = 'ℹ️';
+                
+                if (stripos($line, 'imported') !== false || stripos($line, 'success') !== false) {
+                    $logBg = 'rgba(16, 185, 129, 0.1)';
+                    $logBorder = 'rgba(16, 185, 129, 0.2)';
+                    $logColor = '#6ee7b7';
+                    $logIcon = '✅';
+                } elseif (stripos($line, 'error') !== false || stripos($line, 'failed') !== false || stripos($line, 'not found') !== false) {
+                    $logBg = 'rgba(239, 68, 68, 0.1)';
+                    $logBorder = 'rgba(239, 68, 68, 0.2)';
+                    $logColor = '#fca5a5';
+                    $logIcon = '❌';
+                } elseif (stripos($line, 'warning') !== false || stripos($line, 'skip') !== false) {
+                    $logBg = 'rgba(245, 158, 11, 0.1)';
+                    $logBorder = 'rgba(245, 158, 11, 0.2)';
+                    $logColor = '#fcd34d';
+                    $logIcon = '⚠️';
+                }
+                ?>
+                <div class="log-line" style="background: <?= $logBg ?>; border: 1px solid <?= $logBorder ?>; color: <?= $logColor ?>; padding: 12px 16px; border-radius: 10px; display: flex; align-items: center; gap: 12px; font-family: monospace; font-size: 0.92rem; line-height: 1.4;">
+                    <span><?= $logIcon ?></span>
+                    <span><?= h($line); ?></span>
+                </div>
+            <?php endforeach; ?>
+        </div>
     </section>
 <?php endif; ?>
 

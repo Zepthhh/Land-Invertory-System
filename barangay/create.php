@@ -4,6 +4,8 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../includes/functions.php';
 
+require_role(['Admin', 'Editor']);
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = trim($_POST['name'] ?? '');
     $totalArea = (float) ($_POST['total_area_sqm'] ?? 0);
@@ -18,6 +20,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmt->execute();
     $stmt->close();
 
+    log_action($mysqli, 'Create Barangay', "Created Barangay: $name, Area: $totalArea sqm.");
     set_flash('success', 'Barangay added successfully.');
     redirect(app_url('/barangay/index.php'));
 }

@@ -4,6 +4,8 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../includes/functions.php';
 
+require_role(['Admin', 'Editor']);
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $barangayId = (int) ($_POST['barangay_id'] ?? 0);
     $type = $_POST['type'] ?? '';
@@ -20,6 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmt->execute();
     $stmt->close();
 
+    log_action($mysqli, 'Create Land Use', "Created Land Use: $type ($area sqm) in Barangay ID $barangayId.");
     set_flash('success', 'Land use entry added successfully.');
     redirect(app_url('/land_use/index.php'));
 }

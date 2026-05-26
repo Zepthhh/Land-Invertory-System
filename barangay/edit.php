@@ -4,6 +4,8 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../includes/functions.php';
 
+require_role(['Admin', 'Editor']);
+
 $id = (int) ($_GET['id'] ?? $_POST['id'] ?? 0);
 if ($id <= 0) {
     set_flash('error', 'Invalid barangay selected.');
@@ -24,6 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmt->execute();
     $stmt->close();
 
+    log_action($mysqli, 'Edit Barangay', "Updated Barangay details: ID: $id, Name: $name, Area: $totalArea sqm.");
     set_flash('success', 'Barangay updated successfully.');
     redirect(app_url('/barangay/index.php'));
 }
