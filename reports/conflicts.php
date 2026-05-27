@@ -58,7 +58,7 @@ require_once __DIR__ . '/../includes/header.php';
             <tbody id="conflictsBody">
                 <?php if ($conflicts): ?>
                     <?php foreach ($conflicts as $lot): ?>
-                        <tr class="conflict-row"
+                        <tr class="conflict-row" onclick="openViewModalFromRow(this, event)"
                             data-caseref="<?= h(strtolower($lot['case_reference'] ?? '')) ?>"
                             data-lot="<?= h(strtolower($lot['lot_no'])) ?>"
                             data-survey="<?= h(strtolower($lot['survey_no'])) ?>"
@@ -125,9 +125,9 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="modal-body" style="padding: 24px; overflow-y: auto; color: #fff;">
             <!-- Tabs in modal -->
             <div class="modal-tabs" style="display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 1px solid var(--panel-border); padding-bottom: 10px; overflow-x: auto; white-space: nowrap;">
-                <button type="button" id="modal-tab-btn-basic" class="btn btn-primary" onclick="switchModalTab('basic')" style="padding: 6px 12px; min-height: auto; font-size: 0.85rem;">Technical Specs</button>
-                <button type="button" id="modal-tab-btn-claimant" class="btn btn-secondary" onclick="switchModalTab('claimant')" style="padding: 6px 12px; min-height: auto; font-size: 0.85rem;">Claimants & GAD</button>
-                <button type="button" id="modal-tab-btn-legal" class="btn btn-secondary" onclick="switchModalTab('legal')" style="padding: 6px 12px; min-height: auto; font-size: 0.85rem;">Case & Documentation</button>
+                <button type="button" id="modal-tab-btn-basic" class="btn btn-primary" onclick="switchModalTab('basic')" style="padding: 6px 12px; min-height: auto; font-size: 0.85rem; flex-shrink: 0;">Technical Specs</button>
+                <button type="button" id="modal-tab-btn-claimant" class="btn btn-secondary" onclick="switchModalTab('claimant')" style="padding: 6px 12px; min-height: auto; font-size: 0.85rem; flex-shrink: 0;">Claimants & GAD</button>
+                <button type="button" id="modal-tab-btn-legal" class="btn btn-secondary" onclick="switchModalTab('legal')" style="padding: 6px 12px; min-height: auto; font-size: 0.85rem; flex-shrink: 0;">Case & Documentation</button>
             </div>
             
             <!-- Modal Pane: Basic -->
@@ -213,8 +213,8 @@ function filterConflicts() {
 }
 
 // Modal View Functions
-function openViewModal(button) {
-    const row = button.closest('tr');
+function openViewModal(element) {
+    const row = element.tagName === 'TR' ? element : element.closest('tr');
     const details = JSON.parse(row.dataset.details);
     const appUrlBase = '<?= h(app_url()); ?>';
 
@@ -273,6 +273,13 @@ function openViewModal(button) {
 
 function closeViewModal() {
     document.getElementById('viewModal').style.display = 'none';
+}
+
+function openViewModalFromRow(row, event) {
+    if (event.target.closest('button') || event.target.closest('a')) {
+        return;
+    }
+    openViewModal(row);
 }
 
 function switchModalTab(tabId) {

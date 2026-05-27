@@ -65,7 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Additional optional inputs for quick-add (optional)
     $dominantUse = trim($_POST['dominant_use'] ?? '');
     $subdivision = trim($_POST['subdivision'] ?? '');
-    $sheetRow = ($_POST['sheet_row'] !== '') ? (int)$_POST['sheet_row'] : null;
+    $sheetRow = (($_POST['sheet_row'] ?? '') !== '') ? (int)$_POST['sheet_row'] : null;
     $allowedStatuses = lot_statuses();
 
     if ($lotNo === '' || $surveyNo === '' || $barangayId <= 0 || $area <= 0 || !in_array($status, $allowedStatuses, true)) {
@@ -198,7 +198,7 @@ require_once __DIR__ . '/../includes/header.php';
                             $statusClass = 'status-' . strtolower(str_replace(' ', '-', $lot['status']));
                             if ($lot['status'] === 'Conflict') $statusClass = 'status-conflict';
                         ?>
-                            <tr class="lot-row <?= h($statusClass) ?>"
+                            <tr class="lot-row <?= h($statusClass) ?>" onclick="openViewModalFromRow(this, event)"
                                 data-lot="<?= h(strtolower($lot['lot_no'])) ?>"
                                 data-survey="<?= h(strtolower($lot['survey_no'])) ?>"
                                 data-barangay="<?= h(strtolower($lot['barangay_name'])) ?>"
@@ -282,9 +282,9 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="modal-body" style="padding: 24px; overflow-y: auto; color: #fff;">
             <!-- Tabs in modal -->
             <div class="modal-tabs" style="display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 1px solid var(--panel-border); padding-bottom: 10px; overflow-x: auto; white-space: nowrap;">
-                <button type="button" id="modal-tab-btn-basic" class="btn btn-primary" onclick="switchModalTab('basic')" style="padding: 6px 12px; min-height: auto; font-size: 0.85rem;">Technical Specs</button>
-                <button type="button" id="modal-tab-btn-claimant" class="btn btn-secondary" onclick="switchModalTab('claimant')" style="padding: 6px 12px; min-height: auto; font-size: 0.85rem;">Claimants & GAD</button>
-                <button type="button" id="modal-tab-btn-legal" class="btn btn-secondary" onclick="switchModalTab('legal')" style="padding: 6px 12px; min-height: auto; font-size: 0.85rem;">Legal & Files</button>
+                <button type="button" id="modal-tab-btn-basic" class="btn btn-primary" onclick="switchModalTab('basic')" style="padding: 6px 12px; min-height: auto; font-size: 0.85rem; flex-shrink: 0;">Technical Specs</button>
+                <button type="button" id="modal-tab-btn-claimant" class="btn btn-secondary" onclick="switchModalTab('claimant')" style="padding: 6px 12px; min-height: auto; font-size: 0.85rem; flex-shrink: 0;">Claimants & GAD</button>
+                <button type="button" id="modal-tab-btn-legal" class="btn btn-secondary" onclick="switchModalTab('legal')" style="padding: 6px 12px; min-height: auto; font-size: 0.85rem; flex-shrink: 0;">Legal & Files</button>
             </div>
             
             <!-- Modal Pane: Basic -->
@@ -387,8 +387,8 @@ function hideConfirm(id) {
 }
 
 // Modal View Functions
-function openViewModal(button) {
-    const row = button.closest('tr');
+function openViewModal(element) {
+    const row = element.tagName === 'TR' ? element : element.closest('tr');
     const details = JSON.parse(row.dataset.details);
     const appUrlBase = '<?= h(app_url()); ?>';
 
@@ -456,6 +456,13 @@ function openViewModal(button) {
 
 function closeViewModal() {
     document.getElementById('viewModal').style.display = 'none';
+}
+
+function openViewModalFromRow(row, event) {
+    if (event.target.closest('button') || event.target.closest('a') || event.target.closest('.confirm-row') || event.target.closest('.confirm-message')) {
+        return;
+    }
+    openViewModal(row);
 }
 
 function switchModalTab(tabId) {

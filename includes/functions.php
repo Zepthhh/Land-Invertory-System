@@ -46,7 +46,7 @@ function get_flash(): ?array
     return $flash;
 }
 
-function fetch_barangays(mysqli $mysqli): array
+function fetch_barangays(object $mysqli): array
 {
     $sql = 'SELECT id, name, total_area_sqm FROM barangay ORDER BY name ASC';
     $result = $mysqli->query($sql);
@@ -84,11 +84,19 @@ function land_use_community_types(): array
 
 function app_url(string $path = ''): string
 {
-    $base = '/Land-Invertory-System';
+    // Auto-detect base: if running via PHP built-in server (php -S),
+    // DOCUMENT_ROOT points directly to our folder, so base is ''.
+    // Under XAMPP/Apache it lives at /Land-Invertory-System/.
+    $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
+    if (str_starts_with($scriptName, '/Land-Invertory-System')) {
+        $base = '/Land-Invertory-System';
+    } else {
+        $base = '';
+    }
     return $base . $path;
 }
 
-function count_table_rows(mysqli $mysqli, string $table): int
+function count_table_rows(object $mysqli, string $table): int
 {
     $allowed = ['barangay', 'lots', 'land_use'];
     if (!in_array($table, $allowed, true)) {
@@ -101,7 +109,7 @@ function count_table_rows(mysqli $mysqli, string $table): int
     return (int) ($row['total'] ?? 0);
 }
 
-function sum_table_area(mysqli $mysqli, string $table, string $column = 'area_sqm'): float
+function sum_table_area(object $mysqli, string $table, string $column = 'area_sqm'): float
 {
     $allowed = ['barangay', 'lots', 'land_use'];
     if (!in_array($table, $allowed, true)) {
@@ -134,7 +142,7 @@ function get_status_badge_class(string $status): string
     };
 }
 
-function log_action(mysqli $mysqli, string $action, ?string $details = null): void
+function log_action(object $mysqli, string $action, ?string $details = null): void
 {
     // Logging deactivated for local mode
 }

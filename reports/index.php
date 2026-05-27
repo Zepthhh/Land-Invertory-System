@@ -60,7 +60,7 @@ $statusCountResult = $mysqli->query("
     SELECT status, COUNT(*) AS total
     FROM lots
     GROUP BY status
-    ORDER BY FIELD(status, 'Unapplied', 'Applied', 'Titled', 'Conflict')
+    ORDER BY CASE status WHEN 'Unapplied' THEN 1 WHEN 'Applied' THEN 2 WHEN 'Titled' THEN 3 WHEN 'Conflict' THEN 4 ELSE 5 END ASC
 ");
 $statusCounts = $statusCountResult ? $statusCountResult->fetch_all(MYSQLI_ASSOC) : [];
 
@@ -104,7 +104,7 @@ $identifiedLotsResult = $mysqli->query("
     SELECT l.lot_no, l.survey_no, b.name AS barangay_name, l.area_sqm, l.current_claimant, l.survey_claimant, l.status
     FROM lots l
     INNER JOIN barangay b ON b.id = l.barangay_id
-    ORDER BY b.name ASC, l.survey_no ASC, CAST(l.lot_no AS UNSIGNED), l.lot_no ASC
+    ORDER BY b.name ASC, l.survey_no ASC, CAST(l.lot_no AS INTEGER), l.lot_no ASC
     LIMIT 300
 ");
 $identifiedLots = $identifiedLotsResult ? $identifiedLotsResult->fetch_all(MYSQLI_ASSOC) : [];

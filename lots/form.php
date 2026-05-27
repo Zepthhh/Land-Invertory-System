@@ -39,10 +39,10 @@ $barangays = $barangays ?? [];
     <?php endif; ?>
 
     <!-- JS Tab Switcher Header -->
-    <div class="tabs-header" style="display: flex; gap: 8px; margin-bottom: 22px; border-bottom: 1px solid var(--panel-border); padding-bottom: 12px; overflow-x: auto; white-space: nowrap;">
-        <button type="button" id="btn-tab-basic" class="btn btn-primary" onclick="switchLotTab('basic')" style="padding: 8px 16px; min-height: 36px; font-size: 0.9rem;">Basic Info</button>
-        <button type="button" id="btn-tab-claimants" class="btn btn-secondary" onclick="switchLotTab('claimants')" style="padding: 8px 16px; min-height: 36px; font-size: 0.9rem;">Claimants & GAD</button>
-        <button type="button" id="btn-tab-legal" class="btn btn-secondary" onclick="switchLotTab('legal')" style="padding: 8px 16px; min-height: 36px; font-size: 0.9rem;">Legal & Files</button>
+    <div class="tabs-header" style="display: flex; gap: 6px; margin-bottom: 20px; border-bottom: 1px solid var(--panel-border); padding-bottom: 12px; flex-wrap: wrap;">
+        <button type="button" id="btn-tab-basic" class="btn btn-primary" onclick="switchLotTab('basic')" style="padding: 7px 12px; min-height: 34px; font-size: 0.8rem; flex: 1; min-width: 80px;">Basic Info</button>
+        <button type="button" id="btn-tab-claimants" class="btn btn-secondary" onclick="switchLotTab('claimants')" style="padding: 7px 12px; min-height: 34px; font-size: 0.8rem; flex: 1; min-width: 80px;">Claimants & GAD</button>
+        <button type="button" id="btn-tab-legal" class="btn btn-secondary" onclick="switchLotTab('legal')" style="padding: 7px 12px; min-height: 34px; font-size: 0.8rem; flex: 1; min-width: 80px;">Legal & Files</button>
     </div>
 
     <!-- TAB 1: BASIC INFO -->
@@ -102,15 +102,15 @@ $barangays = $barangays ?? [];
                 <input type="text" id="current_claimant" name="current_claimant" value="<?= h((string) $lotFormValues['current_claimant']); ?>" placeholder="Full name of claimant">
             </div>
             <div>
-                <label for="claimant_sex">Claimant Sex (GAD Compliance)</label>
+                <label for="claimant_sex">Sex / Gender <span style="font-size:0.78rem; color: var(--primary); font-weight:500;">(GAD)</span></label>
                 <select id="claimant_sex" name="claimant_sex">
                     <option value="">Select gender</option>
                     <option value="M" <?= $lotFormValues['claimant_sex'] === 'M' ? 'selected' : ''; ?>>Male (M)</option>
                     <option value="F" <?= $lotFormValues['claimant_sex'] === 'F' ? 'selected' : ''; ?>>Female (F)</option>
-                    <option value="M/F" <?= $lotFormValues['claimant_sex'] === 'M/F' ? 'selected' : ''; ?>>Co-owners/Both (M/F)</option>
+                    <option value="M/F" <?= $lotFormValues['claimant_sex'] === 'M/F' ? 'selected' : ''; ?>>Co-owners / Both (M/F)</option>
                 </select>
             </div>
-            <div style="grid-column: span 2;">
+            <div>
                 <label for="current_address">Current Claimant Address</label>
                 <input type="text" id="current_address" name="current_address" value="<?= h((string) $lotFormValues['current_address']); ?>" placeholder="Complete address of current claimant">
             </div>
@@ -153,9 +153,9 @@ $barangays = $barangays ?? [];
                 <input type="text" id="case_reference" name="case_reference" value="<?= h((string) $lotFormValues['case_reference']); ?>" placeholder="e.g. CENRO Case No. 2026-44">
             </div>
             
-            <div style="grid-column: span 2;">
+            <div>
                 <label for="remarks">Legal / Operational Remarks</label>
-                <textarea id="remarks" name="remarks" rows="3" style="width: 100%; background: rgba(0, 0, 0, 0.25); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 10px; color: #fff; padding: 12px; font-family: inherit; font-size: 1rem;" placeholder="Enter comments or notes regarding this lot..."><?= h((string) $lotFormValues['remarks']); ?></textarea>
+                <textarea id="remarks" name="remarks" rows="3" style="width: 100%; background: rgba(0, 0, 0, 0.25); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 10px; color: #fff; padding: 12px; font-family: inherit; font-size: 1rem; resize: vertical;" placeholder="Enter comments or notes regarding this lot..."><?= h((string) $lotFormValues['remarks']); ?></textarea>
             </div>
 
             <!-- Uploads -->

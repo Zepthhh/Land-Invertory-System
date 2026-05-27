@@ -338,6 +338,11 @@ a {
     overflow: hidden;
 }
 
+/* Wide panel variant used for standalone full-page forms */
+.panel-wide {
+    overflow: visible;
+}
+
 .panel-title {
     font-size: 1.15rem;  /* HCI: clear section heading */
     font-weight: 700;
@@ -539,8 +544,14 @@ form {
 
 .form-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    grid-template-columns: 1fr;
     gap: 15px;
+}
+
+/* When there's enough space (wide panels like create/edit standalone pages) use 2 cols */
+.panel-wide .form-grid,
+.grid-form-table > .panel:last-child .form-grid {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
 
 label {
@@ -940,6 +951,32 @@ input:focus, select:focus {
 
 @keyframes spin {
     to { transform: rotate(360deg); }
+}
+
+.lot-row, .conflict-row {
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+.lot-row:hover, .conflict-row:hover {
+    background-color: rgba(16, 185, 129, 0.06) !important;
+}
+
+.tabs-header .btn, .modal-tabs .btn {
+    flex-shrink: 0;
+}
+
+.tabs-header, .modal-tabs {
+    -ms-overflow-style: none;  /* IE and Edge */
+}
+
+@supports (scrollbar-width: none) {
+    .tabs-header, .modal-tabs {
+        scrollbar-width: none;     /* Firefox */
+    }
+}
+
+.tabs-header::-webkit-scrollbar, .modal-tabs::-webkit-scrollbar {
+    display: none;             /* Chrome, Safari, Opera */
 }
 
 /* Print Header (Hidden on Screen) */

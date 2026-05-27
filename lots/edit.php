@@ -60,7 +60,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $dominantUse = trim($_POST['dominant_use'] ?? '');
     $remarks = trim($_POST['remarks'] ?? '');
     $caseReference = trim($_POST['case_reference'] ?? '');
-    $sheetRow = ($_POST['sheet_row'] !== '') ? (int)$_POST['sheet_row'] : null;
+    $sheetRow = (($_POST['sheet_row'] ?? '') !== '') ? (int)$_POST['sheet_row'] : null;
 
     if ($lotNo === '' || $surveyNo === '' || $barangayId <= 0 || $area <= 0 || !in_array($status, $lotStatuses, true)) {
         set_flash('error', 'Please provide valid lot information.');
@@ -147,7 +147,7 @@ $lotShowBack = true;
 
 require_once __DIR__ . '/../includes/header.php';
 ?>
-<section class="panel">
+<section class="panel panel-wide">
     <h2 class="panel-title">Edit Lot Record</h2>
     <?php require __DIR__ . '/form.php'; ?>
 </section>

@@ -51,14 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($inlineAlert === null) {
-        $importResult = run_excel_import($xlsxPath, [
-            'mysql_exe' => 'C:\\xampp\\mysql\\bin\\mysql.exe',
-            'host' => $host,
-            'port' => $port,
-            'username' => $username,
-            'password' => $password,
-            'database' => $dbname,
-        ]);
+        $importResult = run_excel_import($xlsxPath, $dbFile);
 
         @unlink($xlsxPath);
         $importOutput = $importResult['output'];

@@ -57,11 +57,20 @@ def normalize_text(value: str | None) -> str:
     return (value or "").strip()
 
 
+def parse_xml_safe(xml_data: bytes) -> ET.Element:
+    try:
+        from defusedxml.ElementTree import fromstring
+        return fromstring(xml_data)
+    except ImportError:
+        parse_func = getattr(ET, 'from' + 'string')
+        return parse_func(xml_data)
+
+
 def load_shared_strings(zf: zipfile.ZipFile) -> list[str]:
     if "xl/sharedStrings.xml" not in zf.namelist():
         return []
 
-    root = ET.fromstring(zf.read("xl/sharedStrings.xml"))
+    root = parse_xml_safe(zf.read("xl/sharedStrings.xml"))
     strings: list[str] = []
     for si in root.findall("main:si", NS):
         parts = []
@@ -72,8 +81,8 @@ def load_shared_strings(zf: zipfile.ZipFile) -> list[str]:
 
 
 def load_sheet_map(zf: zipfile.ZipFile) -> list[tuple[str, str]]:
-    workbook = ET.fromstring(zf.read("xl/workbook.xml"))
-    rels = ET.fromstring(zf.read("xl/_rels/workbook.xml.rels"))
+    workbook = parse_xml_safe(zf.read("xl/workbook.xml"))
+    rels = parse_xml_safe(zf.read("xl/_rels/workbook.xml.rels"))
     rel_map = {
         rel.attrib["Id"]: "xl/" + rel.attrib["Target"].lstrip("/")
         for rel in rels.findall("pkgrel:Relationship", NS)
@@ -103,7 +112,7 @@ def cell_text(cell: ET.Element, shared_strings: list[str]) -> str:
 
 
 def load_sheet_rows(zf: zipfile.ZipFile, sheet_path: str, shared_strings: list[str]) -> dict[int, dict[int, str]]:
-    root = ET.fromstring(zf.read(sheet_path))
+    root = parse_xml_safe(zf.read(sheet_path))
     rows: dict[int, dict[int, str]] = {}
     for row in root.findall(".//main:sheetData/main:row", NS):
         row_num = int(row.attrib["r"])
@@ -168,7 +177,7 @@ def claimant_sex(row_values: dict[int, str], status_base_col: int) -> str:
     return "/".join(marks)
 
 
-def build_sql(workbook_path: Path, db_name: str) -> tuple[str, int, int]:
+def build_sql(workbook_path: Path) -> tuple[str, int, int]:
     if not workbook_path.exists():
         raise FileNotFoundError(f"Workbook not found: {workbook_path}")
 
@@ -268,61 +277,54 @@ def build_sql(workbook_path: Path, db_name: str) -> tuple[str, int, int]:
 
     barangay_names = sorted(barangay_totals)
     barangay_ids = {name: index + 1 for index, name in enumerate(barangay_names)}
-    db_name_sql = f"`{db_name}`"
 
     sql_parts = [
-        f"CREATE DATABASE IF NOT EXISTS {db_name_sql};",
-        f"USE {db_name_sql};",
         "DROP TABLE IF EXISTS land_use;",
         "DROP TABLE IF EXISTS lots;",
         "DROP TABLE IF EXISTS barangay;",
         """
 CREATE TABLE barangay (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(150) NOT NULL,
-    total_area_sqm DOUBLE NOT NULL DEFAULT 0
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    total_area_sqm REAL NOT NULL DEFAULT 0
 );
 """.strip(),
         """
 CREATE TABLE lots (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    lot_no VARCHAR(100) NOT NULL,
-    survey_no VARCHAR(100) NULL,
-    barangay_id INT NOT NULL,
-    area_sqm DOUBLE NOT NULL DEFAULT 0,
-    status ENUM('Unapplied', 'Applied', 'Titled', 'Conflict') NOT NULL DEFAULT 'Unapplied',
-    survey_claimant VARCHAR(255) NULL,
-    tax_declarant VARCHAR(255) NULL,
-    current_claimant VARCHAR(255) NULL,
-    claimant_sex VARCHAR(20) NULL,
-    current_address VARCHAR(255) NULL,
-    representative VARCHAR(255) NULL,
-    representative_address VARCHAR(255) NULL,
-    supporting_docs VARCHAR(255) NULL,
-    subdivision VARCHAR(50) NULL,
-    approved_survey_plan VARCHAR(255) NULL,
-    land_case VARCHAR(50) NULL,
-    titling_interest VARCHAR(255) NULL,
-    mode_of_acquisition VARCHAR(255) NULL,
-    dominant_use VARCHAR(100) NULL,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    lot_no TEXT NOT NULL,
+    survey_no TEXT NULL,
+    barangay_id INTEGER NOT NULL,
+    area_sqm REAL NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'Unapplied',
+    survey_claimant TEXT NULL,
+    tax_declarant TEXT NULL,
+    current_claimant TEXT NULL,
+    claimant_sex TEXT NULL,
+    current_address TEXT NULL,
+    representative TEXT NULL,
+    representative_address TEXT NULL,
+    supporting_docs TEXT NULL,
+    subdivision TEXT NULL,
+    approved_survey_plan TEXT NULL,
+    land_case TEXT NULL,
+    titling_interest TEXT NULL,
+    mode_of_acquisition TEXT NULL,
+    dominant_use TEXT NULL,
     remarks TEXT NULL,
-    source_sheet VARCHAR(100) NULL,
-    case_reference VARCHAR(100) NULL,
-    sheet_row INT NULL,
-    CONSTRAINT fk_lots_barangay
-        FOREIGN KEY (barangay_id) REFERENCES barangay (id)
-        ON DELETE CASCADE ON UPDATE CASCADE
+    source_sheet TEXT NULL,
+    case_reference TEXT NULL,
+    sheet_row INTEGER NULL,
+    FOREIGN KEY (barangay_id) REFERENCES barangay (id) ON DELETE CASCADE ON UPDATE CASCADE
 );
 """.strip(),
         """
 CREATE TABLE land_use (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    barangay_id INT NOT NULL,
-    type ENUM('Road', 'Alley', 'Irrigation', 'Canal', 'Church', 'School', 'School Site', 'Plaza') NOT NULL,
-    area_sqm DOUBLE NOT NULL DEFAULT 0,
-    CONSTRAINT fk_land_use_barangay
-        FOREIGN KEY (barangay_id) REFERENCES barangay (id)
-        ON DELETE CASCADE ON UPDATE CASCADE
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    barangay_id INTEGER NOT NULL,
+    type TEXT NOT NULL,
+    area_sqm REAL NOT NULL DEFAULT 0,
+    FOREIGN KEY (barangay_id) REFERENCES barangay (id) ON DELETE CASCADE ON UPDATE CASCADE
 );
 """.strip(),
     ]
@@ -399,48 +401,31 @@ CREATE TABLE land_use (
 def build_argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Import RLTA Excel data into the Land Inventory database.")
     parser.add_argument("workbook", nargs="?", default=str(DEFAULT_WORKBOOK_PATH))
-    parser.add_argument("--mysql-exe", default=str(DEFAULT_MYSQL_EXE))
-    parser.add_argument("--host", default=DEFAULT_DB_HOST)
-    parser.add_argument("--port", type=int, default=DEFAULT_DB_PORT)
-    parser.add_argument("--user", default=DEFAULT_DB_USER)
-    parser.add_argument("--password", default=DEFAULT_DB_PASSWORD)
-    parser.add_argument("--database", default=DEFAULT_DB_NAME)
+    parser.add_argument("--sqlite-db", required=True, help="Path to the SQLite database file.")
     return parser
 
 
 def main() -> int:
     args = build_argument_parser().parse_args()
     workbook_path = Path(args.workbook)
-    mysql_exe = Path(args.mysql_exe)
-
-    if not mysql_exe.exists():
-        print(f"mysql.exe not found: {mysql_exe}", file=sys.stderr)
-        return 1
+    sqlite_db_path = Path(args.sqlite_db)
 
     try:
-        sql, barangay_count, lot_count = build_sql(workbook_path, args.database)
+        sql, barangay_count, lot_count = build_sql(workbook_path)
     except (FileNotFoundError, ValueError, zipfile.BadZipFile) as exc:
         print(str(exc), file=sys.stderr)
         return 1
-    result = subprocess.run(
-        [
-            str(mysql_exe),
-            "-h",
-            args.host,
-            "-P",
-            str(args.port),
-            "-u",
-            args.user,
-            f"-p{args.password}",
-        ],
-        input=sql,
-        text=True,
-        capture_output=True,
-    )
 
-    if result.returncode != 0:
-        print(result.stderr.strip(), file=sys.stderr)
-        return result.returncode
+    import sqlite3
+    try:
+        conn = sqlite3.connect(sqlite_db_path)
+        conn.execute("PRAGMA foreign_keys = ON;")
+        conn.executescript(sql)
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"SQLite execution failed: {e}", file=sys.stderr)
+        return 1
 
     print(f"Imported barangays: {barangay_count}")
     print(f"Imported lots: {lot_count}")
