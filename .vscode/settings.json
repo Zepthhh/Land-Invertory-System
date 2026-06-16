@@ -1,0 +1,7 @@
+{
+    // Tell the SQL linter this project uses MySQL, not SQL Server (T-SQL).
+    // This silences false-positive errors caused by MySQL-specific syntax
+    // (backtick identifiers, AUTO_INCREMENT, ENUM, ENGINE=InnoDB, etc.)
+    // that T-SQL does not recognise.
+    "sql.dialect": "mysql"
+}

@@ -57,9 +57,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $importOutput = $importResult['output'];
 
         if ($importResult['exit_code'] !== 0) {
-            $inlineAlert = ['type' => 'error', 'message' => 'Import failed. Review the output below.'];
+            $inlineAlert = ['type' => 'error', 'message' => 'Import failed. Review the output below for details.'];
         } else {
-            $inlineAlert = ['type' => 'success', 'message' => 'Excel import completed successfully. Barangays, lots, and calculations were refreshed.'];
+            // Parse counts from output
+            $importedBarangays = 0;
+            $importedLots = 0;
+            foreach (explode(PHP_EOL, $importOutput) as $outLine) {
+                if (preg_match('/imported barangays:\s*(\d+)/i', $outLine, $m)) $importedBarangays = (int)$m[1];
+                if (preg_match('/imported lots:\s*(\d+)/i', $outLine, $m)) $importedLots = (int)$m[1];
+            }
+            $inlineAlert = [
+                'type' => 'success',
+                'message' => "Import successful! Imported {$importedBarangays} barangay(s) and {$importedLots} lot(s). All calculations have been refreshed."
+            ];
         }
     }
 }
@@ -117,7 +127,27 @@ require_once __DIR__ . '/../includes/header.php';
 
 <section class="panel">
     <h2 class="panel-title">Import RLTA Excel File</h2>
-    <p class="section-text">Upload an `.xlsx` file with barangay sheets. The system will rebuild the barangay and lot records, then your reports will automatically show total area per barangay, total lots, grouped deductions for `Alley/Road/Irrigation/Canal`, grouped deductions for `Church/School Site/Plaza`, and the remaining square meters.</p>
+    <p class="section-text">Upload an <strong>.xlsx</strong> file with barangay sheets. The system will rebuild barangay and lot records automatically. Each worksheet = one barangay. Data columns must follow the standard RLTA layout.</p>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 20px; padding: 16px; background: rgba(0,0,0,0.15); border-radius: 12px; border: 1px solid var(--panel-border);">
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 1.5rem;">1️⃣</span>
+            <div><strong style="font-size: 0.85rem;">Select File</strong><br><span style="color: var(--text-muted); font-size: 0.8rem;">.xlsx RLTA workbook</span></div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 1.5rem;">2️⃣</span>
+            <div><strong style="font-size: 0.85rem;">Click Import</strong><br><span style="color: var(--text-muted); font-size: 0.8rem;">System parses all sheets</span></div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 1.5rem;">3️⃣</span>
+            <div><strong style="font-size: 0.85rem;">Review Results</strong><br><span style="color: var(--text-muted); font-size: 0.8rem;">Check import log below</span></div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 1.5rem;">4️⃣</span>
+            <div><strong style="font-size: 0.85rem;">View Reports</strong><br><span style="color: var(--text-muted); font-size: 0.8rem;">All data is now refreshed</span></div>
+        </div>
+    </div>
+
     <form method="post" enctype="multipart/form-data" id="importForm">
         <div class="drag-drop-zone" id="dropZone">
             <input type="file" id="excel_file" name="excel_file" accept=".xlsx" required>
@@ -128,6 +158,7 @@ require_once __DIR__ . '/../includes/header.php';
             </svg>
             <h3 style="margin: 0; color: #fff;" id="fileName">Drag & Drop your Excel file here</h3>
             <p>or click to browse from your computer (.xlsx only)</p>
+            <p id="fileInfo" style="font-size: 0.82rem; color: var(--text-muted); margin-top: 4px; display: none;"></p>
         </div>
         <div class="actions" style="justify-content: center; margin-top: 25px;">
             <button class="btn btn-primary" type="submit" id="submitBtn" style="min-width: 200px; padding: 14px; border-radius: 12px; font-size: 1.1rem;">
@@ -282,8 +313,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function updateFileName() {
         if (fileInput.files.length > 0) {
-            fileName.textContent = fileInput.files[0].name;
+            const f = fileInput.files[0];
+            fileName.textContent = f.name;
             fileName.style.color = 'var(--primary)';
+            const sizeKB = (f.size / 1024).toFixed(1);
+            const info = document.getElementById('fileInfo');
+            if (info) {
+                info.textContent = `File size: ${sizeKB} KB`;
+                info.style.display = 'block';
+            }
         }
     }
 

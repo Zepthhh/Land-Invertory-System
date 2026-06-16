@@ -152,6 +152,9 @@ require_once __DIR__ . '/../includes/header.php';
             </svg>
             Print Report
         </button>
+        <button class="btn btn-export print-no-show" onclick="exportBarangaySummaryCSV()">
+            ⬇ Export Summary CSV
+        </button>
         <a class="btn btn-secondary" href="<?= h(app_url('/reports/search.php')); ?>">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 5px;">
                 <circle cx="11" cy="11" r="8"></circle>
@@ -395,10 +398,32 @@ require_once __DIR__ . '/../includes/header.php';
 </section>
 
 <section class="panel">
-    <h2 class="panel-title">Identify Lot and Area (sqm)</h2>
-    <p class="section-text print-no-show">This report lists the identified lot number, its survey number, claimant, exact area in square meters, and current status (showing up to 300 entries).</p>
+    <div class="actions-spread print-no-show" style="margin-bottom: 14px;">
+        <div>
+            <h2 class="panel-title" style="margin:0;">Identify Lot and Area (sqm)</h2>
+            <p class="section-text" style="margin-top: 6px; margin-bottom: 0;">Lists identified lots with survey number, claimant, area, and status (up to 300 entries).</p>
+        </div>
+        <div style="display: flex; gap: 10px; align-items: center;">
+            <span class="table-counter" id="lotsReportCounter"><?= count($identifiedLots); ?> lots</span>
+            <?php if ($identifiedLots): ?>
+                <button class="btn btn-export" onclick="exportLotsCSV()" style="padding: 7px 14px; font-size: 0.82rem; min-height: 34px;">⬇ Export CSV</button>
+            <?php endif; ?>
+        </div>
+    </div>
+
+    <!-- Filter bar for identified lots -->
+    <div class="filter-toolbar print-no-show">
+        <input type="text" id="lotsReportFilter" placeholder="🔍 Filter by lot no, survey, barangay, claimant..." oninput="filterLotsReport()">
+        <select id="lotsReportStatusFilter" onchange="filterLotsReport()">
+            <option value="">All Statuses</option>
+            <?php foreach (lot_statuses() as $s): ?>
+                <option value="<?= h($s); ?>"><?= h(get_status_label($s)); ?></option>
+            <?php endforeach; ?>
+        </select>
+    </div>
+
     <div class="table-wrap">
-        <table class="table-compact">
+        <table class="table-compact table-sticky" id="lotsReportTable">
             <thead>
                 <tr>
                     <th>Lot No</th>
@@ -409,10 +434,12 @@ require_once __DIR__ . '/../includes/header.php';
                     <th>Status</th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody id="lotsReportBody">
                 <?php if ($identifiedLots): ?>
                     <?php foreach ($identifiedLots as $row): ?>
-                        <tr>
+                        <tr class="lots-report-row"
+                            data-text="<?= h(strtolower(implode(' ', [$row['lot_no'], $row['survey_no'], $row['barangay_name'], $row['current_claimant'] ?? '', $row['survey_claimant'] ?? '']))); ?>"
+                            data-status="<?= h($row['status']); ?>">
                             <td><?= h($row['lot_no']); ?></td>
                             <td><?= h($row['survey_no']); ?></td>
                             <td><?= h($row['barangay_name']); ?></td>
@@ -426,12 +453,61 @@ require_once __DIR__ . '/../includes/header.php';
                         </tr>
                     <?php endforeach; ?>
                 <?php else: ?>
-                    <tr>
-                        <td colspan="6">No lot records available.</td>
-                    </tr>
+                    <tr><td colspan="6">No lot records available.</td></tr>
                 <?php endif; ?>
+                <tr id="lotsReportNoResults" style="display:none;">
+                    <td colspan="6"><div class="empty-state-fancy" style="padding:25px;"><h3>No Matching Lots</h3><p>Try different keywords or status.</p></div></td>
+                </tr>
             </tbody>
         </table>
     </div>
 </section>
+
+<script>
+function filterLotsReport() {
+    const text = document.getElementById('lotsReportFilter').value.toLowerCase();
+    const status = document.getElementById('lotsReportStatusFilter').value;
+    const rows = document.querySelectorAll('#lotsReportBody .lots-report-row');
+    const noResults = document.getElementById('lotsReportNoResults');
+    let visible = 0;
+    rows.forEach(row => {
+        const textMatch = row.dataset.text.includes(text);
+        const statusMatch = !status || row.dataset.status === status;
+        const show = textMatch && statusMatch;
+        row.style.display = show ? '' : 'none';
+        if (show) visible++;
+    });
+    noResults.style.display = (visible === 0 && rows.length > 0) ? '' : 'none';
+    document.getElementById('lotsReportCounter').textContent = visible + ' lots';
+}
+
+function exportBarangaySummaryCSV() {
+    const table = document.querySelector('.panel table.table-compact');
+    let csv = 'Barangay,Whole Area (sqm),Lots,Lot Area (sqm),Infra. Deductions,Community Deductions,Total Deductions,After Deductions,Remaining Balance\n';
+    table.querySelectorAll('tbody tr').forEach(row => {
+        const cells = row.querySelectorAll('td');
+        if (cells.length < 2) return;
+        const vals = Array.from(cells).slice(0, 9).map(c => '"' + c.textContent.trim().replace(/\n.*/s, '') + '"');
+        csv += vals.join(',') + '\n';
+    });
+    downloadCSVReport(csv, 'barangay_summary.csv');
+}
+
+function exportLotsCSV() {
+    const rows = document.querySelectorAll('#lotsReportBody .lots-report-row');
+    let csv = 'Lot No,Survey No,Barangay,Claimant,Area (sqm),Status\n';
+    rows.forEach(row => {
+        if (row.style.display === 'none') return;
+        const c = row.querySelectorAll('td');
+        csv += `"${c[0].textContent.trim()}","${c[1].textContent.trim()}","${c[2].textContent.trim()}","${c[3].textContent.trim()}","${c[4].textContent.trim()}","${c[5].textContent.trim()}"\n`;
+    });
+    downloadCSVReport(csv, 'identified_lots.csv');
+}
+
+function downloadCSVReport(csv, filename) {
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; a.click();
+}
+</script>
+
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

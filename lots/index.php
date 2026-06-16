@@ -126,7 +126,7 @@ $lotShowBack = false;
 // Query selecting ALL database columns to support detail popup
 $lotsResult = $mysqli->query("
     SELECT 
-        l.id, l.lot_no, l.survey_no, b.name AS barangay_name, l.area_sqm, l.status,
+        l.id, l.lot_no, l.survey_no, b.name AS barangay_name, b.id AS barangay_id, l.area_sqm, l.status,
         l.survey_claimant, l.tax_declarant, l.current_claimant, l.claimant_sex, l.current_address,
         l.representative, l.representative_address, l.supporting_docs, l.subdivision, l.approved_survey_plan,
         l.land_case, l.titling_interest, l.mode_of_acquisition, l.dominant_use, l.remarks,
@@ -139,13 +139,27 @@ $lots = $lotsResult ? $lotsResult->fetch_all(MYSQLI_ASSOC) : [];
 
 require_once __DIR__ . '/../includes/header.php';
 ?>
-<section class="grid-form-table">
-    <div class="panel">
-        <h2 class="panel-title">Add Lot</h2>
+<div style="margin-bottom: 20px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+    <?php if ($currentUserRole !== 'Viewer' && $barangays): ?>
+        <button type="button" id="toggleFormBtn" class="btn btn-primary" onclick="toggleAddForm()" style="padding: 9px 18px; font-size: 0.9rem; min-height: 38px; gap: 6px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            Add Lot
+        </button>
+        <a class="btn btn-secondary" href="<?= h(app_url('/lots/create.php')); ?>" style="padding: 9px 18px; font-size: 0.9rem; min-height: 38px;">
+            📋 Full Create Page
+        </a>
+    <?php endif; ?>
+</div>
+
+<!-- Collapsible Add Lot Form -->
+<div id="addLotFormPanel" style="display:none; margin-bottom: 20px;">
+    <div class="panel" style="margin-bottom: 0;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px;">
+            <h2 class="panel-title" style="margin:0;">Add Lot</h2>
+            <button type="button" class="btn btn-secondary" onclick="toggleAddForm()" style="padding: 6px 14px; font-size: 0.82rem; min-height: 32px;">✕ Close</button>
+        </div>
         <?php if ($currentUserRole === 'Viewer'): ?>
-            <div class="empty-state-fancy" style="padding: 20px 10px;">
-                <p style="color: var(--text-muted);">You are logged in as a <strong>Viewer</strong>. You do not have permission to add or modify lot records.</p>
-            </div>
+            <p style="color: var(--text-muted);">You are logged in as a <strong>Viewer</strong>. You do not have permission to add or modify lot records.</p>
         <?php elseif (!$barangays): ?>
             <div class="empty-state-fancy">
                 <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
@@ -153,43 +167,53 @@ require_once __DIR__ . '/../includes/header.php';
                 <p>Add a barangay first before creating lot records.</p>
             </div>
         <?php else: ?>
-            <div style="display: flex; flex-direction: column; gap: 15px; margin-bottom: 25px;">
-                <p class="section-text" style="margin:0; line-height: 1.5; color: var(--text-muted);">Quick-add a lot, or use the full create page for more fields.</p>
-                <a class="btn btn-secondary" style="justify-content: center;" href="<?= h(app_url('/lots/create.php')); ?>">Open Full Create Page</a>
-            </div>
             <?php require __DIR__ . '/form.php'; ?>
         <?php endif; ?>
     </div>
+</div>
+
+<section style="width:100%;">
 
     <div class="panel">
         <div class="actions-spread" style="margin-bottom: 15px;">
             <h2 class="panel-title" style="margin:0;">Lot List</h2>
-            <span class="table-counter" id="lotCounter"><?= count($lots) ?> total lots</span>
+            <div style="display:flex;gap:10px;align-items:center;">
+                <span class="table-counter" id="lotCounter"><?= count($lots) ?> total lots</span>
+                <?php if ($lots): ?>
+                    <button class="btn btn-export" onclick="exportLotsCSV()" style="padding: 7px 14px; font-size: 0.82rem; min-height: 34px;">⬇ Export CSV</button>
+                <?php endif; ?>
+            </div>
         </div>
 
         <!-- Live Filter Bar -->
         <div class="table-filter-bar">
-            <input type="text" id="filterText" placeholder="🔍  Search lot no, survey, barangay, claimant..." oninput="filterLots()">
-            <select id="filterStatus" onchange="filterLots()">
-                <option value="">All Statuses</option>
+            <input type="text" id="filterText" placeholder="🔍  Search lot no, survey, barangay, claimant..." oninput="filterLots()" autocomplete="off">
+            <select id="filterStatus" onchange="filterLots()" autocomplete="off">
+                <option value="" selected>All Statuses</option>
                 <?php foreach ($lotStatuses as $s): ?>
                     <option value="<?= h($s) ?>"><?= h(get_status_label($s)) ?></option>
+                <?php endforeach; ?>
+            </select>
+            <select id="filterBarangay" onchange="filterLots()" autocomplete="off">
+                <option value="" selected>All Barangays</option>
+                <?php foreach ($barangays as $b): ?>
+                    <option value="<?= h((string)$b['id']); ?>"><?= h($b['name']); ?></option>
                 <?php endforeach; ?>
             </select>
         </div>
 
         <div class="table-wrap">
-            <table class="table-sticky" id="lotsTable">
+            <table class="table-sticky" id="lotsTable" style="min-width: 700px;">
                 <thead>
                     <tr>
-                        <th>Lot No</th>
-                        <th>Survey No</th>
-                        <th>Barangay</th>
-                        <th>Claimant</th>
-                        <th>Area (sqm)</th>
-                        <th>Dominant Use</th>
-                        <th>Status</th>
-                        <th>Actions</th>
+                        <th style="padding: 10px 12px;">Lot No</th>
+                        <th style="padding: 10px 12px;">Survey No</th>
+                        <th style="padding: 10px 12px;">Barangay</th>
+                        <th style="padding: 10px 12px;">Claimant</th>
+                        <th style="padding: 10px 12px;">Area (sqm)</th>
+                        <th style="padding: 10px 12px;">Dominant Use</th>
+                        <th style="padding: 10px 12px;">Status</th>
+                        <th style="padding: 10px 12px;">Actions</th>
                     </tr>
                 </thead>
                 <tbody id="lotsBody">
@@ -202,26 +226,27 @@ require_once __DIR__ . '/../includes/header.php';
                                 data-lot="<?= h(strtolower($lot['lot_no'])) ?>"
                                 data-survey="<?= h(strtolower($lot['survey_no'])) ?>"
                                 data-barangay="<?= h(strtolower($lot['barangay_name'])) ?>"
+                                data-barangayid="<?= h((string)($lot['barangay_id'] ?? '')) ?>"
                                 data-claimant="<?= h(strtolower($lot['current_claimant'] ?? $lot['survey_claimant'] ?? '')) ?>"
                                 data-status="<?= h($lot['status']) ?>"
                                 data-details='<?= h(json_encode($lot)); ?>'>
-                                <td><strong><?= h($lot['lot_no']); ?></strong></td>
-                                <td><?= h($lot['survey_no']); ?></td>
-                                <td><?= h($lot['barangay_name']); ?></td>
-                                <td><?= h($lot['current_claimant'] ?: $lot['survey_claimant'] ?: '—'); ?></td>
-                                <td><?= format_number((float) $lot['area_sqm']); ?></td>
-                                <td><?= h($lot['dominant_use'] ?: '—'); ?></td>
-                                <td>
+                                <td style="padding: 10px 12px;"><strong><?= h($lot['lot_no']); ?></strong></td>
+                                <td style="padding: 10px 12px; font-size: 0.85rem;"><?= h($lot['survey_no']); ?></td>
+                                <td style="padding: 10px 12px;"><?= h($lot['barangay_name']); ?></td>
+                                <td style="padding: 10px 12px;"><?= h($lot['current_claimant'] ?: $lot['survey_claimant'] ?: '—'); ?></td>
+                                <td style="padding: 10px 12px; white-space: nowrap;"><?= format_number((float) $lot['area_sqm']); ?></td>
+                                <td style="padding: 10px 12px;"><?= h($lot['dominant_use'] ?: '—'); ?></td>
+                                <td style="padding: 10px 12px;">
                                     <span class="<?= h(get_status_badge_class($lot['status'])); ?>">
                                         <?= get_status_icon($lot['status']); ?> <?= h(get_status_label($lot['status'])); ?>
                                     </span>
                                 </td>
-                                <td>
-                                    <div class="inline-actions">
-                                        <button type="button" class="btn btn-secondary" onclick="openViewModal(this)" style="padding: 8px 12px; font-size: 0.88rem; min-height: 36px;">View</button>
+                                <td style="padding: 8px 10px;">
+                                    <div class="inline-actions" style="gap: 5px;">
+                                        <button type="button" class="btn btn-secondary" onclick="openViewModal(this)" style="padding: 5px 10px; font-size: 0.8rem; min-height: 30px; min-width: 50px;">View</button>
                                         <?php if ($currentUserRole !== 'Viewer'): ?>
-                                            <a class="btn btn-secondary" href="<?= h(app_url('/lots/edit.php?id=' . $lot['id'])); ?>">Edit</a>
-                                            <button class="btn btn-danger" type="button" onclick="showConfirm(<?= (int)$lot['id'] ?>, '<?= h(addslashes($lot['lot_no'])) ?>')">Delete</button>
+                                            <a class="btn btn-secondary" href="<?= h(app_url('/lots/edit.php?id=' . $lot['id'])); ?>" style="padding: 5px 10px; font-size: 0.8rem; min-height: 30px; min-width: 46px;">Edit</a>
+                                            <button class="btn btn-danger" type="button" onclick="showConfirm(<?= (int)$lot['id'] ?>, '<?= h(addslashes($lot['lot_no'])) ?>')" style="padding: 5px 10px; font-size: 0.8rem; min-height: 30px; min-width: 56px;">Delete</button>
                                         <?php endif; ?>
                                     </div>
                                 </td>
@@ -249,7 +274,7 @@ require_once __DIR__ . '/../includes/header.php';
                                 <div class="empty-state-fancy">
                                     <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
                                     <h3>No Lots Found</h3>
-                                    <p>Add a lot using the form on the left or import from Excel.</p>
+                                    <p>Click the <strong>+ Add Lot</strong> button above or import from Excel.</p>
                                 </div>
                             </td>
                         </tr>
@@ -349,9 +374,33 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 
 <script>
+// Toggle Add Lot form panel
+function toggleAddForm() {
+    const panel = document.getElementById('addLotFormPanel');
+    const btn = document.getElementById('toggleFormBtn');
+    const isOpen = panel.style.display !== 'none';
+    if (isOpen) {
+        panel.style.display = 'none';
+        if (btn) btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg> Add Lot';
+    } else {
+        panel.style.display = 'block';
+        if (btn) btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"></line></svg> Hide Form';
+        panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+}
+
+// Reset filters and run on page load to ensure table is in sync
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('filterText').value = '';
+    document.getElementById('filterStatus').value = '';
+    document.getElementById('filterBarangay').value = '';
+    filterLots();
+});
+
 function filterLots() {
     const text = document.getElementById('filterText').value.toLowerCase();
     const status = document.getElementById('filterStatus').value;
+    const barangayId = document.getElementById('filterBarangay').value;
     const rows = document.querySelectorAll('#lotsBody .lot-row');
     const noResults = document.getElementById('noResultsRow');
     let visible = 0;
@@ -362,8 +411,9 @@ function filterLots() {
             || row.dataset.barangay.includes(text)
             || row.dataset.claimant.includes(text);
         const statusMatch = !status || row.dataset.status === status;
+        const brgyMatch = !barangayId || row.dataset.barangayid === barangayId;
 
-        const show = lotMatch && statusMatch;
+        const show = lotMatch && statusMatch && brgyMatch;
         row.style.display = show ? '' : 'none';
         const confirmId = row.querySelector('[onclick]')?.getAttribute('onclick')?.match(/\d+/)?.[0];
         if (confirmId) {
@@ -374,6 +424,18 @@ function filterLots() {
 
     noResults.style.display = (visible === 0 && rows.length > 0) ? '' : 'none';
     document.getElementById('lotCounter').textContent = visible + ' of <?= count($lots) ?> lots';
+}
+
+function exportLotsCSV() {
+    const rows = document.querySelectorAll('#lotsBody .lot-row');
+    let csv = 'Lot No,Survey No,Barangay,Claimant,Area (sqm),Dominant Use,Status\n';
+    rows.forEach(row => {
+        if (row.style.display === 'none') return;
+        const c = row.querySelectorAll('td');
+        csv += `"${c[0].textContent.trim()}","${c[1].textContent.trim()}","${c[2].textContent.trim()}","${c[3].textContent.trim()}","${c[4].textContent.trim()}","${c[5].textContent.trim()}","${c[6].textContent.trim()}"\n`;
+    });
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'lots_export.csv'; a.click();
 }
 
 function showConfirm(id, lotNo) {

@@ -15,7 +15,7 @@ $currentUserRole = get_current_user_role();
 // Fetch all lots with 'Conflict' status
 $conflictsResult = $mysqli->query("
     SELECT 
-        l.id, l.lot_no, l.survey_no, b.name AS barangay_name, l.area_sqm, l.status,
+        l.id, l.lot_no, l.survey_no, b.name AS barangay_name, b.id AS barangay_id, l.area_sqm, l.status,
         l.survey_claimant, l.tax_declarant, l.current_claimant, l.claimant_sex, l.current_address,
         l.representative, l.representative_address, l.supporting_docs, l.subdivision, l.approved_survey_plan,
         l.land_case, l.titling_interest, l.mode_of_acquisition, l.dominant_use, l.remarks,
@@ -27,14 +27,55 @@ $conflictsResult = $mysqli->query("
 ");
 $conflicts = $conflictsResult ? $conflictsResult->fetch_all(MYSQLI_ASSOC) : [];
 
+// Compute stat values
+$totalConflicts   = count($conflicts);
+$uniqueBarangays  = count(array_unique(array_column($conflicts, 'barangay_name')));
+$totalDisputeArea = array_sum(array_column($conflicts, 'area_sqm'));
+$uniqueCaseRefs   = count(array_filter(array_unique(array_column($conflicts, 'case_reference'))));
+
+// Build barangay list for filter
+$conflictBrgyList = [];
+foreach ($conflicts as $c) {
+    $conflictBrgyList[$c['barangay_id']] = $c['barangay_name'];
+}
+
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
-<div class="search-bar-wrapper" style="margin-bottom: 25px;">
-    <div style="display: flex; gap: 12px; align-items: center;">
-        <input type="text" id="conflictFilterText" placeholder="🔍 Search by Case Reference, Claimant, Lot, or Survey..." oninput="filterConflicts()" style="max-width: 500px; padding: 12px 20px; border-radius: 12px; background: var(--panel-bg); border: 1px solid var(--panel-border); color: #fff;">
-        <span class="table-counter" id="conflictCounter"><?= count($conflicts) ?> active disputes</span>
+
+<!-- Stat Cards -->
+<div class="conflict-stats-grid">
+    <div class="conflict-stat-card cs-danger">
+        <div class="cs-label">Active Disputes</div>
+        <div class="cs-value"><?= $totalConflicts; ?></div>
     </div>
+    <div class="conflict-stat-card cs-warning">
+        <div class="cs-label">Barangays Affected</div>
+        <div class="cs-value"><?= $uniqueBarangays; ?></div>
+    </div>
+    <div class="conflict-stat-card">
+        <div class="cs-label">Total Disputed Area</div>
+        <div class="cs-value" style="font-size: 1.1rem; padding-top: 6px;"><?= format_number($totalDisputeArea); ?> <small style="font-size: 0.6em; color: var(--text-muted);">sqm</small></div>
+    </div>
+    <div class="conflict-stat-card cs-primary">
+        <div class="cs-label">Case References</div>
+        <div class="cs-value"><?= $uniqueCaseRefs; ?></div>
+    </div>
+</div>
+
+<!-- Filter Toolbar -->
+<div class="filter-toolbar" style="margin-bottom: 20px;">
+    <input type="text" id="conflictFilterText" placeholder="🔍 Search by Case Reference, Claimant, Lot, or Survey..." oninput="filterConflicts()">
+    <select id="conflictFilterBrgy" onchange="filterConflicts()" style="max-width: 220px;">
+        <option value="">All Barangays</option>
+        <?php foreach ($conflictBrgyList as $bId => $bName): ?>
+            <option value="<?= h($bName); ?>"><?= h($bName); ?></option>
+        <?php endforeach; ?>
+    </select>
+    <span class="table-counter" id="conflictCounter"><?= $totalConflicts; ?> active disputes</span>
+    <?php if ($conflicts): ?>
+        <button class="btn btn-export" onclick="exportConflictsCSV()" style="padding: 7px 14px; font-size: 0.82rem; min-height: 34px;">⬇ Export CSV</button>
+    <?php endif; ?>
 </div>
 
 <section class="panel">
@@ -193,24 +234,40 @@ require_once __DIR__ . '/../includes/header.php';
 <script>
 function filterConflicts() {
     const text = document.getElementById('conflictFilterText').value.toLowerCase();
+    const brgy = document.getElementById('conflictFilterBrgy').value.toLowerCase();
     const rows = document.querySelectorAll('#conflictsBody .conflict-row');
     const noResults = document.getElementById('noConflictResultsRow');
     let visible = 0;
 
     rows.forEach(row => {
-        const match = row.dataset.caseref.includes(text)
+        const textMatch = row.dataset.caseref.includes(text)
             || row.dataset.lot.includes(text)
             || row.dataset.survey.includes(text)
             || row.dataset.barangay.includes(text)
             || row.dataset.claimant.includes(text);
+        const brgyMatch = !brgy || row.dataset.barangay === brgy;
 
-        row.style.display = match ? '' : 'none';
-        if (match) visible++;
+        const show = textMatch && brgyMatch;
+        row.style.display = show ? '' : 'none';
+        if (show) visible++;
     });
 
     noResults.style.display = (visible === 0 && rows.length > 0) ? '' : 'none';
     document.getElementById('conflictCounter').textContent = visible + ' active disputes';
 }
+
+function exportConflictsCSV() {
+    const rows = document.querySelectorAll('#conflictsBody .conflict-row');
+    let csv = 'Case Reference,Lot No,Survey No,Barangay,Current Claimant,Land Case Status\n';
+    rows.forEach(row => {
+        if (row.style.display === 'none') return;
+        const c = row.querySelectorAll('td');
+        csv += `"${c[0].textContent.trim()}","${c[1].textContent.trim()}","${c[2].textContent.trim()}","${c[3].textContent.trim()}","${c[4].textContent.trim()}","${c[5].textContent.trim()}"\n`;
+    });
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'land_conflicts.csv'; a.click();
+}
+
 
 // Modal View Functions
 function openViewModal(element) {

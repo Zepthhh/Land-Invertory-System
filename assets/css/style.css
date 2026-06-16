@@ -29,8 +29,8 @@ body {
         radial-gradient(circle at 85% 30%, rgba(5, 150, 105, 0.15), transparent 25%);
     background-attachment: fixed;
     color: var(--text-main);
-    line-height: 1.6;   /* HCI: improved line-height for readability */
-    font-size: 1rem;    /* HCI: base 16px for readability, not 0.95rem */
+    line-height: 1.65;  /* HCI: improved line-height for 30-50yr readability */
+    font-size: 1.0625rem; /* ~17px — comfortable for 30-50 yr old users */
     min-height: 100vh;
 }
 
@@ -52,14 +52,14 @@ a {
     -webkit-backdrop-filter: var(--glass-blur);
     backdrop-filter: var(--glass-blur);
     border-right: 1px solid var(--panel-border);
-    padding: 30px 20px;
+    padding: 32px 22px;
     display: flex;
     flex-direction: column;
-    gap: 30px;
+    gap: 32px;
     position: fixed;   /* sidebar stays locked in place always */
     top: 0;
     left: 0;
-    width: 210px;
+    width: 240px;      /* wider sidebar for 30-50yr: easier to read nav labels */
     height: 100vh;
     overflow-y: auto;
     z-index: 100;
@@ -74,9 +74,9 @@ a {
 
 .logo-wrapper {
     position: relative;
-    width: 85px;
-    height: 85px;
-    margin-bottom: 15px;
+    width: 96px;
+    height: 96px;
+    margin-bottom: 16px;
     border-radius: 50%;
     overflow: hidden;
     box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4), 0 0 15px rgba(255, 255, 255, 0.1);
@@ -120,7 +120,7 @@ a {
 }
 
 .brand {
-    font-size: 1.4rem;
+    font-size: 1.55rem;  /* larger brand for 30-50yr readability */
     font-weight: 800;
     display: inline-block;
     background: linear-gradient(
@@ -152,30 +152,38 @@ a {
 }
 
 .brand-subtitle {
-    margin-top: 4px;
+    margin-top: 5px;
     color: var(--text-muted);
-    font-size: 0.85rem;
+    font-size: 0.92rem;  /* slightly larger subtitle */
     font-weight: 400;
 }
 
 .nav-menu {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 10px;
 }
 
 .nav-menu a {
-    padding: 12px 16px;  /* HCI: min 44px touch target height */
+    padding: 14px 18px;  /* HCI: larger padding for 30-50yr touch targets */
     border-radius: 10px;
     color: var(--text-muted);
     font-weight: 500;
-    font-size: 1rem;     /* HCI: readable nav label size */
+    font-size: 1.05rem;  /* HCI: slightly larger nav labels for 30-50yr */
     position: relative;
     overflow: hidden;
     border: 1px solid transparent;
-    min-height: 44px;    /* HCI: Fitts's Law - minimum touch target */
+    min-height: 50px;    /* HCI: bigger touch targets for 30-50yr users */
     display: flex;
     align-items: center;
+    gap: 12px;
+}
+
+.nav-icon {
+    font-size: 1.2rem;   /* bigger icons for 30-50yr users */
+    flex-shrink: 0;
+    width: 22px;
+    text-align: center;
 }
 
 .nav-menu a::before {
@@ -208,9 +216,9 @@ a {
 
 /* Main Content */
 .main-content {
-    padding: 32px 40px;
-    margin-left: 210px;          /* push content clear of fixed sidebar */
-    width: calc(100% - 210px);   /* fill remaining viewport width */
+    padding: 36px 44px;
+    margin-left: 240px;          /* matches widened sidebar */
+    width: calc(100% - 240px);   /* fill remaining viewport width */
     min-width: 0;
     overflow-x: hidden;
     box-sizing: border-box;
@@ -223,25 +231,25 @@ a {
 }
 
 .page-header h1 {
-    font-size: 1.9rem;   /* HCI: clear visual hierarchy - large but not overwhelming */
+    font-size: 2.1rem;   /* HCI: larger heading for 30-50yr readability */
     font-weight: 700;
     letter-spacing: -0.5px;
-    margin-bottom: 6px;
+    margin-bottom: 8px;
     text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
 }
 
 .page-header p {
     color: var(--text-muted);
-    font-size: 1rem;     /* HCI: readable description, not tiny */
-    line-height: 1.6;
+    font-size: 1.05rem;  /* HCI: comfortable description size for 30-50yr */
+    line-height: 1.65;
 }
 
 /* Cards / Widgets */
 .cards {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 15px;
-    margin-bottom: 25px;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 18px;
+    margin-bottom: 28px;
 }
 
 .card {
@@ -250,7 +258,7 @@ a {
     backdrop-filter: var(--glass-blur);
     border: 1px solid var(--panel-border);
     border-radius: 18px;
-    padding: 20px;
+    padding: 24px 22px;  /* more breathing room for 30-50yr users */
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
     transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     position: relative;
@@ -285,16 +293,16 @@ a {
 
 .card-label {
     color: var(--text-muted);
-    font-size: 0.85rem;
+    font-size: 0.9rem;   /* slightly larger card labels for 30-50yr */
     font-weight: 500;
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
 
 .card-value {
-    font-size: 1.8rem;
+    font-size: 2.1rem;   /* larger stat numbers for 30-50yr at-a-glance reading */
     font-weight: 800;
-    margin-top: 8px;
+    margin-top: 10px;
     background: linear-gradient(135deg, #fff, #94a3b8);
     -webkit-background-clip: text;
     background-clip: text;
@@ -330,8 +338,8 @@ a {
     backdrop-filter: var(--glass-blur);
     border: 1px solid var(--panel-border);
     border-radius: 16px;
-    padding: 24px;
-    margin-bottom: 24px;
+    padding: 28px;       /* more padding for 30-50yr comfort */
+    margin-bottom: 28px;
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
     animation: fadeInUp 0.6s ease-out backwards;
     min-width: 0;        /* prevent overflow */
@@ -344,9 +352,9 @@ a {
 }
 
 .panel-title {
-    font-size: 1.15rem;  /* HCI: clear section heading */
+    font-size: 1.25rem;  /* HCI: larger section heading for 30-50yr */
     font-weight: 700;
-    margin-bottom: 18px;
+    margin-bottom: 20px;
     display: flex;
     align-items: center;
     gap: 10px;
@@ -380,7 +388,7 @@ table {
 }
 
 th, td {
-    padding: 14px 16px;  /* HCI: more vertical padding = easier scanning */
+    padding: 16px 18px;  /* HCI: generous vertical padding for 30-50yr scanning */
     text-align: left;
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
@@ -389,17 +397,17 @@ th {
     background: rgba(15, 23, 42, 0.85);
     color: #e2e8f0;
     font-weight: 700;
-    font-size: 0.75rem;   /* HCI: headers distinct from data, slightly smaller for fit */
+    font-size: 0.82rem;  /* HCI: slightly larger headers for 30-50yr users */
     text-transform: uppercase;
     letter-spacing: 1px;
     white-space: nowrap;
 }
 
 td {
-    font-size: 0.92rem;  /* Slightly reduced for better fit in density */
+    font-size: 0.98rem;  /* HCI: comfortable data font size for 30-50yr */
     color: #e2e8f0;
     transition: background 0.2s ease;
-    line-height: 1.4;
+    line-height: 1.5;
 }
 
 tr:hover td {
@@ -413,7 +421,7 @@ tr:last-child td {
 /* Small sub-label inside table headers */
 th small {
     display: block;
-    font-size: 0.68rem;
+    font-size: 0.74rem;  /* slightly larger for 30-50yr readability */
     font-weight: 500;
     text-transform: none;
     letter-spacing: 0;
@@ -424,13 +432,13 @@ th small {
 /* Compact table variant for dense data */
 .table-compact th,
 .table-compact td {
-    padding: 8px 10px;
-    font-size: 0.88rem;
+    padding: 10px 12px;  /* slightly larger compact for 30-50yr */
+    font-size: 0.92rem;
     white-space: nowrap;
 }
 
 .table-compact th {
-    font-size: 0.72rem;
+    font-size: 0.78rem;
 }
 
 /* Sticky Table Header */
@@ -461,8 +469,8 @@ tr.status-unapplied td:first-child { border-left: 3px solid #f59e0b; }
 .table-filter-bar input,
 .table-filter-bar select {
     flex: 1;
-    min-width: 150px;
-    padding: 12px 20px;
+    min-width: 160px;
+    padding: 13px 20px;  /* taller filter fields for 30-50yr */
     border-radius: 12px;
     background: var(--panel-bg);
     border: 1px solid var(--panel-border);
@@ -470,7 +478,7 @@ tr.status-unapplied td:first-child { border-left: 3px solid #f59e0b; }
     backdrop-filter: var(--glass-blur);
     box-shadow: 0 4px 15px rgba(0,0,0,0.1);
     color: #fff;
-    font-size: 0.9rem;
+    font-size: 0.97rem;  /* larger filter text for 30-50yr */
     font-family: inherit;
 }
 
@@ -481,7 +489,7 @@ tr.status-unapplied td:first-child { border-left: 3px solid #f59e0b; }
 }
 
 .table-counter {
-    font-size: 0.85rem;
+    font-size: 0.9rem;   /* slightly larger counter for 30-50yr */
     color: var(--text-muted);
     white-space: nowrap;
 }
@@ -558,19 +566,19 @@ label {
     display: block;
     font-weight: 600;    /* HCI: labels clearly distinct from input text */
     color: #e2e8f0;      /* HCI: higher contrast for labels */
-    margin-bottom: 8px;  /* HCI: more space between label and input */
-    font-size: 0.92rem;
+    margin-bottom: 9px;  /* HCI: more space between label and input */
+    font-size: 1rem;     /* HCI: comfortable label size for 30-50yr */
     letter-spacing: 0.2px;
 }
 
 input, select {
     width: 100%;
-    padding: 12px 16px;  /* HCI: min 44px height touch target */
+    padding: 14px 18px;  /* HCI: taller inputs for 30-50yr ease of use */
     background: rgba(0, 0, 0, 0.25);
     border: 1px solid rgba(255, 255, 255, 0.15);
     border-radius: 10px;
     color: #f1f5f9;      /* HCI: high contrast text in inputs */
-    font-size: 1rem;     /* HCI: 16px prevents iOS auto-zoom */
+    font-size: 1.05rem;  /* HCI: comfortable input font for 30-50yr */
     font-family: inherit;
     transition: all 0.25s ease;
 }
@@ -597,13 +605,13 @@ input:focus, select:focus {
     align-items: center;
     justify-content: center;
     gap: 8px;
-    padding: 11px 22px;  /* HCI: Fitts's Law – bigger = easier to click */
-    min-height: 44px;    /* HCI: WCAG 2.5.5 minimum touch target size */
+    padding: 13px 26px;  /* HCI: larger buttons for 30-50yr ease of clicking */
+    min-height: 50px;    /* HCI: taller touch target for 30-50yr users */
     border: none;
     border-radius: 10px;
     cursor: pointer;
     font-weight: 600;
-    font-size: 1rem;     /* HCI: readable button labels, not 0.95rem */
+    font-size: 1.05rem;  /* HCI: slightly larger button labels for 30-50yr */
     font-family: inherit;
     transition: all 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
     letter-spacing: 0.4px;
@@ -685,14 +693,14 @@ input:focus, select:focus {
     margin-top: 20px;    /* HCI: clear visual separation from form fields */
 }
 
-/* HCI: Inline actions sized for usability, not tiny */
+/* HCI: Inline actions sized for 30-50yr usability */
 .inline-actions .btn {
-    padding: 8px 16px;   /* HCI: min 36px height for table actions */
-    font-size: 0.88rem;  /* HCI: slightly smaller but still readable */
+    padding: 10px 18px;  /* HCI: taller table action buttons for 30-50yr */
+    font-size: 0.93rem;  /* HCI: more readable table action labels */
     border-radius: 8px;
     gap: 5px;
-    min-width: 75px;
-    min-height: 36px;
+    min-width: 82px;
+    min-height: 42px;    /* HCI: bigger touch target for 30-50yr users */
     justify-content: center;
 }
 
@@ -715,11 +723,11 @@ input:focus, select:focus {
 
 /* Alerts & Badges */
 .alert {
-    padding: 12px 16px;
+    padding: 14px 18px;  /* more generous alert padding for 30-50yr */
     border-radius: 12px;
-    margin-bottom: 20px;
+    margin-bottom: 22px;
     font-weight: 500;
-    font-size: 0.95rem;
+    font-size: 1rem;     /* comfortable alert text for 30-50yr */
     -webkit-backdrop-filter: blur(10px);
     backdrop-filter: blur(10px);
     animation: slideIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
@@ -742,9 +750,9 @@ input:focus, select:focus {
     align-items: center;
     justify-content: center;
     text-align: center;
-    padding: 5px 10px;
+    padding: 6px 12px;   /* larger badges for 30-50yr readability */
     border-radius: 6px;
-    font-size: 0.72rem;  /* HCI: compact but distinct from data */
+    font-size: 0.78rem;  /* HCI: slightly bigger badge text for 30-50yr */
     font-weight: 700;
     letter-spacing: 0.6px;
     text-transform: uppercase;
@@ -825,11 +833,16 @@ input:focus, select:focus {
 
 /* Responsive */
 @media (max-width: 1024px) {
-    .sidebar { width: 80px; padding: 20px 10px; }
-    .sidebar .brand, .sidebar .brand-subtitle, .sidebar .nav-menu span { display: none; }
-    .logo-wrapper { width: 50px; height: 50px; }
-    .main-content { margin-left: 80px; width: calc(100% - 80px); padding: 20px; }
-    .page-header h1 { font-size: 1.6rem; }
+    .sidebar { width: 86px; padding: 20px 10px; }
+    .sidebar .brand, .sidebar .brand-subtitle, .sidebar .nav-menu a span { display: none; }
+    .logo-wrapper { width: 56px; height: 56px; }
+    .main-content { margin-left: 86px; width: calc(100% - 86px); padding: 22px; }
+    .page-header h1 { font-size: 1.75rem; }
+    .nav-menu a {
+        justify-content: center;
+        padding: 14px;       /* bigger icon-only touch targets for 30-50yr */
+    }
+    .nav-icon { font-size: 1.35rem; } /* larger icons on collapsed sidebar */
 }
 
 @media (max-width: 768px) {
@@ -979,6 +992,15 @@ input:focus, select:focus {
     display: none;             /* Chrome, Safari, Opera */
 }
 
+/* .print-no-show — visible on screen, hidden in @media print (see below) */
+
+.section-text {
+    color: var(--text-muted);
+    font-size: 0.92rem;
+    line-height: 1.6;
+    margin-bottom: 15px;
+}
+
 /* Print Header (Hidden on Screen) */
 .print-header {
     display: none;
@@ -999,6 +1021,9 @@ input:focus, select:focus {
     }
     
     .sidebar, .actions-spread, .btn, .search-box, .page-header {
+        display: none !important;
+    }
+    .print-no-show {
         display: none !important;
     }
 
@@ -1087,3 +1112,121 @@ input:focus, select:focus {
         print-color-adjust: exact !important;
     }
 }
+
+/* =============================================
+   ENHANCEMENT ADDITIONS
+   ============================================= */
+
+/* CSV Export / Action toolbar */
+.btn-export {
+    background: rgba(16, 185, 129, 0.12);
+    color: #6ee7b7;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+.btn-export:hover {
+    background: rgba(16, 185, 129, 0.22);
+    transform: translateY(-2px);
+    box-shadow: 0 5px 12px rgba(16, 185, 129, 0.2);
+}
+
+/* Inline duplicate / validation warning banner */
+.inline-warning {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(245, 158, 11, 0.12);
+    border: 1px solid rgba(245, 158, 11, 0.35);
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 0.88rem;
+    color: #fcd34d;
+    margin-top: 10px;
+    animation: slideIn 0.3s ease-out;
+}
+.inline-warning.hidden { display: none; }
+
+/* Type badges (land use) */
+.type-badge {
+    display: inline-block;
+    padding: 3px 9px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+.type-badge.infra { background: rgba(59,130,246,0.15); color: #93c5fd; border: 1px solid rgba(59,130,246,0.3); }
+.type-badge.community { background: rgba(168,85,247,0.15); color: #d8b4fe; border: 1px solid rgba(168,85,247,0.3); }
+
+/* Stat highlight on conflict cards */
+.stat-card-conflict {
+    border-color: rgba(239,68,68,0.35) !important;
+    box-shadow: 0 0 15px rgba(239,68,68,0.1) !important;
+}
+.stat-card-conflict .card-value {
+    background: linear-gradient(135deg, #fca5a5, #ef4444);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+/* Count-up animation class (JS-driven) */
+.count-up { transition: all 0.5s ease-out; }
+
+/* Filter bar enhancement */
+.filter-toolbar {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 16px;
+}
+.filter-toolbar input,
+.filter-toolbar select {
+    flex: 1;
+    min-width: 150px;
+    padding: 12px 17px;  /* taller filter toolbar fields for 30-50yr */
+    border-radius: 10px;
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    color: #fff;
+    font-size: 0.97rem;  /* comfortable filter text for 30-50yr */
+    font-family: inherit;
+}
+.filter-toolbar input:focus,
+.filter-toolbar select:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px rgba(16,185,129,0.15);
+}
+
+/* Conflict stats panel */
+.conflict-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+}
+.conflict-stat-card {
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: 14px;
+    padding: 20px 22px;  /* more padding for 30-50yr stat cards */
+    text-align: center;
+}
+.conflict-stat-card .cs-label {
+    font-size: 0.84rem;  /* slightly larger for 30-50yr readability */
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+}
+.conflict-stat-card .cs-value {
+    font-size: 1.9rem;   /* larger conflict stat numbers for 30-50yr */
+    font-weight: 800;
+    margin-top: 6px;
+    color: #fff;
+}
+.conflict-stat-card.cs-danger .cs-value { color: var(--danger); }
+.conflict-stat-card.cs-warning .cs-value { color: var(--warning); }
+.conflict-stat-card.cs-primary .cs-value { color: var(--primary); }

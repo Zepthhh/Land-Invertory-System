@@ -50,7 +50,10 @@ $barangays = $barangays ?? [];
         <div class="form-grid">
             <div>
                 <label for="lot_no">Lot Number <span style="color:var(--danger)">*</span></label>
-                <input type="text" id="lot_no" name="lot_no" value="<?= h((string) $lotFormValues['lot_no']); ?>" required placeholder="e.g. Lot-001">
+                <input type="text" id="lot_no" name="lot_no" value="<?= h((string) $lotFormValues['lot_no']); ?>" required placeholder="e.g. Lot-001" oninput="hideDuplicateWarning()">
+                <div id="duplicateWarning" class="inline-warning hidden">
+                    ⚠️ A lot with this number already exists in the selected barangay. Please verify to avoid duplicates.
+                </div>
             </div>
             <div>
                 <label for="survey_no">Survey Number <span style="color:var(--danger)">*</span></label>
@@ -263,7 +266,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (response.ok) {
                 const data = await response.json();
                 if (data.exists) {
-                    alert(`⚠️ Warning: A lot with Lot Number "${lotNo}" already exists in the selected Barangay. Please verify to avoid duplicates.`);
+                    document.getElementById('duplicateWarning').classList.remove('hidden');
+                    // Scroll to the warning
+                    document.getElementById('duplicateWarning').scrollIntoView({ behavior: 'smooth', block: 'center' });
                 }
             }
             form.submit(); // Continue standard submit
@@ -273,4 +278,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
+
+function hideDuplicateWarning() {
+    const w = document.getElementById('duplicateWarning');
+    if (w) w.classList.add('hidden');
+}
 </script>

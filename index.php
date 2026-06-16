@@ -97,16 +97,15 @@ foreach ($landUseBreakdown as $lu) {
 require_once __DIR__ . '/includes/header.php';
 ?>
 
+<!-- Quick Search Bar -->
 <div class="search-bar-wrapper" style="margin-bottom: 25px;">
     <form method="get" action="<?= h(app_url('/reports/search.php')); ?>" style="margin: 0;">
-        <div class="search-box" style="display: flex; gap: 10px; max-width: 600px;">
-            <select name="q" required style="flex: 1; padding: 12px 20px; font-size: 1rem; border-radius: 12px; background: var(--panel-bg); border: 1px solid var(--panel-border); backdrop-filter: var(--glass-blur); box-shadow: 0 4px 15px rgba(0,0,0,0.1); color: #fff; appearance: auto; cursor: pointer;">
-                <option value="" disabled selected>Select a status to search...</option>
-                <?php foreach (lot_statuses() as $status): ?>
-                    <option value="<?= h($status); ?>"><?= h(get_status_label($status)); ?></option>
-                <?php endforeach; ?>
-            </select>
+        <div class="search-box" style="display: flex; gap: 10px; max-width: 700px;">
+            <input type="text" name="q"
+                placeholder="🔍  Search lot no, survey no, claimant, barangay..."
+                style="flex: 1; padding: 12px 20px; font-size: 1rem; border-radius: 12px; background: var(--panel-bg); border: 1px solid var(--panel-border); backdrop-filter: var(--glass-blur); box-shadow: 0 4px 15px rgba(0,0,0,0.1); color: #fff; font-family: inherit;">
             <button class="btn btn-primary" type="submit" style="border-radius: 12px; padding: 12px 25px;">Search</button>
+            <a class="btn btn-secondary" href="<?= h(app_url('/reports/search.php')); ?>" style="border-radius: 12px; padding: 12px 16px; white-space: nowrap;">Advanced Search</a>
         </div>
     </form>
 </div>
@@ -115,7 +114,7 @@ require_once __DIR__ . '/includes/header.php';
     <?php foreach ($dashboardCards as $label => $value): ?>
         <div class="card">
             <div class="card-label"><?= h($label); ?></div>
-            <div class="card-value"><?= h($value); ?></div>
+            <div class="card-value count-up" data-target="<?= h($value); ?>"><?= h($value); ?></div>
         </div>
     <?php endforeach; ?>
 </section>
@@ -330,5 +329,46 @@ require_once __DIR__ . '/includes/header.php';
         </table>
     </div>
 </section>
+
+<script>
+// Count-up animation for stat cards
+function animateCountUp(el) {
+    const text = el.dataset.target || el.textContent;
+    const numMatch = text.match(/[\d,]+(?:\.\d+)?/);
+    if (!numMatch) return;
+    const numStr = numMatch[0].replace(/,/g, '');
+    const target = parseFloat(numStr);
+    if (isNaN(target) || target < 10) return;
+    const suffix = text.replace(numMatch[0], '');
+    const duration = 900;
+    const startTime = performance.now();
+    const startVal = 0;
+    function step(now) {
+        const elapsed = now - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        const current = startVal + (target - startVal) * eased;
+        const formatted = current >= 1000
+            ? current.toFixed(target % 1 ? 2 : 0).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+            : current.toFixed(target % 1 ? 2 : 0);
+        el.textContent = formatted + suffix;
+        if (progress < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                animateCountUp(entry.target);
+                observer.unobserve(entry.target);
+            }
+        });
+    }, { threshold: 0.5 });
+
+    document.querySelectorAll('.count-up').forEach(el => observer.observe(el));
+});
+</script>
 
 <?php require_once __DIR__ . '/includes/footer.php'; ?>
