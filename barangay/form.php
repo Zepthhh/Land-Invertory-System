@@ -4,6 +4,7 @@ declare(strict_types=1);
 $barangayFormAction = $barangayFormAction ?? '';
 $barangayFormValues = $barangayFormValues ?? [
     'id' => '',
+    'municipality_id' => '',
     'name' => '',
     'total_area_sqm' => '',
 ];
@@ -15,6 +16,17 @@ $barangayShowBack = $barangayShowBack ?? false;
         <input type="hidden" name="id" value="<?= h((string) $barangayFormValues['id']); ?>">
     <?php endif; ?>
     <div class="form-grid">
+        <div>
+            <label for="municipality_id">Municipality</label>
+            <select id="municipality_id" name="municipality_id" required>
+                <option value="">-- Select Municipality --</option>
+                <?php foreach (fetch_municipalities($mysqli) as $mun): ?>
+                    <option value="<?= h((string)$mun['id']) ?>" <?= (string)$mun['id'] === (string)$barangayFormValues['municipality_id'] ? 'selected' : '' ?>>
+                        <?= h($mun['name']) ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+        </div>
         <div>
             <label for="name">Barangay Name</label>
             <input type="text" id="name" name="name" value="<?= h((string) $barangayFormValues['name']); ?>" required>

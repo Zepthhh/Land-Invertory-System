@@ -11,13 +11,16 @@ $pageDescription = 'Search lot records by lot number, survey number, claimant na
 
 $query        = trim($_GET['q'] ?? '');
 $statusFilter = trim($_GET['status'] ?? '');
+$municipalityFilter = (int)($_GET['municipality_id'] ?? 0);
 $barangayFilter = (int)($_GET['barangay_id'] ?? 0);
 $results      = [];
 $searchSummary = null;
 
+$municipalitiesRes = $mysqli->query("SELECT id, name FROM municipality ORDER BY name ASC");
+$municipalities = $municipalitiesRes ? $municipalitiesRes->fetch_all(MYSQLI_ASSOC) : [];
 $barangays = fetch_barangays($mysqli);
 
-$hasSearch = ($query !== '' || $statusFilter !== '' || $barangayFilter > 0);
+$hasSearch = ($query !== '' || $statusFilter !== '' || $municipalityFilter > 0 || $barangayFilter > 0);
 
 if ($hasSearch) {
     $conditions = [];
@@ -35,6 +38,12 @@ if ($hasSearch) {
         $conditions[] = "l.status = ?";
         $params[] = $statusFilter;
         $types .= 's';
+    }
+
+    if ($municipalityFilter > 0) {
+        $conditions[] = "b.municipality_id = ?";
+        $params[] = $municipalityFilter;
+        $types .= 'i';
     }
 
     if ($barangayFilter > 0) {
@@ -89,43 +98,74 @@ require_once __DIR__ . '/../includes/header.php';
 ?>
 
 <!-- Search Bar -->
-<section class="panel">
-    <h2 class="panel-title">🔍 Search Lot Records</h2>
+<section class="panel" style="padding: 24px;">
     <form method="get" action="<?= h(app_url('/reports/search.php')); ?>">
-        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 12px; align-items: end; flex-wrap: wrap;">
-            <div>
-                <label for="q" style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 6px; display: block;">Keywords</label>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; align-items: end;">
+            <div style="grid-column: 1 / -1;">
+                <label for="q" style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 8px; display: block; font-weight: 600;">Keywords</label>
                 <input type="text" id="q" name="q" value="<?= h($query); ?>"
-                    placeholder="Lot no, survey no, claimant, barangay..."
-                    style="width: 100%; padding: 11px 16px; border-radius: 10px; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.15); color: #fff; font-size: 0.95rem; font-family: inherit;">
+                    placeholder="Search by lot no, survey no, claimant name, or tax declarant..."
+                    style="width: 100%; padding: 12px 18px; border-radius: 12px; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.15); color: #fff; font-size: 1rem; font-family: inherit;">
             </div>
+            
             <div>
-                <label for="status" style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 6px; display: block;">Status</label>
-                <select id="status" name="status" style="width: 100%; padding: 11px 16px; border-radius: 10px; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.15); color: #fff; font-size: 0.95rem; font-family: inherit;">
+                <label for="status" style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 8px; display: block; font-weight: 600;">Status</label>
+                <select id="status" name="status" style="width: 100%; padding: 12px 18px; border-radius: 12px; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.15); color: #fff; font-size: 0.95rem; font-family: inherit;">
                     <option value="">All Statuses</option>
                     <?php foreach (lot_statuses() as $s): ?>
                         <option value="<?= h($s); ?>" <?= $statusFilter === $s ? 'selected' : ''; ?>><?= h(get_status_label($s)); ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
+
             <div>
-                <label for="barangay_id" style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 6px; display: block;">Barangay</label>
-                <select id="barangay_id" name="barangay_id" style="width: 100%; padding: 11px 16px; border-radius: 10px; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.15); color: #fff; font-size: 0.95rem; font-family: inherit;">
-                    <option value="">All Barangays</option>
-                    <?php foreach ($barangays as $b): ?>
-                        <option value="<?= h((string)$b['id']); ?>" <?= $barangayFilter === (int)$b['id'] ? 'selected' : ''; ?>><?= h($b['name']); ?></option>
+                <label for="municipality_id" style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 8px; display: block; font-weight: 600;">Municipality</label>
+                <select id="munFilter" name="municipality_id" onchange="filterBarangayDropdown()" style="width: 100%; padding: 12px 18px; border-radius: 12px; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.15); color: #fff; font-size: 0.95rem; font-family: inherit;">
+                    <option value="">All Municipalities</option>
+                    <?php foreach ($municipalities as $m): ?>
+                        <option value="<?= h((string)$m['id']); ?>" <?= $municipalityFilter === (int)$m['id'] ? 'selected' : ''; ?>><?= h($m['name']); ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
-            <div style="display: flex; gap: 8px;">
-                <button class="btn btn-primary" type="submit" style="min-height: 46px; padding: 11px 20px;">Search</button>
+
+            <div>
+                <label for="barangay_id" style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 8px; display: block; font-weight: 600;">Barangay</label>
+                <select id="brgyFilter" name="barangay_id" style="width: 100%; padding: 12px 18px; border-radius: 12px; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.15); color: #fff; font-size: 0.95rem; font-family: inherit;">
+                    <option value="">All Barangays</option>
+                    <?php foreach ($barangays as $b): ?>
+                        <option value="<?= h((string)$b['id']); ?>" data-mun-id="<?= h((string)$b['municipality_id']); ?>" <?= $barangayFilter === (int)$b['id'] ? 'selected' : ''; ?>><?= h($b['name']); ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+
+            <div style="display: flex; gap: 12px; margin-top: 10px;">
+                <button class="btn btn-primary" type="submit" style="min-height: 48px; padding: 12px 24px; font-weight: 600; flex: 1;">Search Records</button>
                 <?php if ($hasSearch): ?>
-                    <a class="btn btn-secondary" href="<?= h(app_url('/reports/search.php')); ?>" style="min-height: 46px; padding: 11px 16px;">Clear</a>
+                    <a class="btn btn-secondary" href="<?= h(app_url('/reports/search.php')); ?>" style="min-height: 48px; padding: 12px 24px; font-weight: 600;">Clear</a>
                 <?php endif; ?>
             </div>
         </div>
     </form>
 </section>
+
+<script>
+function filterBarangayDropdown() {
+    const munId = document.getElementById('munFilter').value;
+    const brgySelect = document.getElementById('brgyFilter');
+    
+    Array.from(brgySelect.options).forEach(opt => {
+        if (opt.value === "") return; 
+        const optMunId = opt.getAttribute('data-mun-id');
+        const show = !munId || optMunId === munId;
+        opt.style.display = show ? '' : 'none';
+        
+        if (opt.selected && !show) {
+            brgySelect.value = "";
+        }
+    });
+}
+document.addEventListener('DOMContentLoaded', filterBarangayDropdown);
+</script>
 
 <!-- Summary Cards (only when searched) -->
 <?php if ($hasSearch && $searchSummary): ?>

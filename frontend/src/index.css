@@ -1,0 +1,20 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #0b110e;
+  --color-panel: rgba(18, 27, 22, 0.65);
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-primary: #10b981;
+  --color-accent: #059669;
+}
+
+@layer base {
+  body {
+    @apply bg-bg text-gray-100 font-sans;
+    background-image: 
+        radial-gradient(circle at 15% 50%, rgba(16, 185, 129, 0.15), transparent 25%),
+        radial-gradient(circle at 85% 30%, rgba(5, 150, 105, 0.15), transparent 25%);
+    background-attachment: fixed;
+    min-height: 100vh;
+  }
+}

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Land Inventory</string>
+    <string name="title_activity_main">Land Inventory</string>
+    <string name="package_name">com.denrcenro.landinventory</string>
+    <string name="custom_url_scheme">com.denrcenro.landinventory</string>
+</resources>

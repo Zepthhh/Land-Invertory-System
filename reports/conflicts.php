@@ -100,11 +100,11 @@ require_once __DIR__ . '/../includes/header.php';
                 <?php if ($conflicts): ?>
                     <?php foreach ($conflicts as $lot): ?>
                         <tr class="conflict-row" onclick="openViewModalFromRow(this, event)"
-                            data-caseref="<?= h(strtolower($lot['case_reference'] ?? '')) ?>"
-                            data-lot="<?= h(strtolower($lot['lot_no'])) ?>"
-                            data-survey="<?= h(strtolower($lot['survey_no'])) ?>"
-                            data-barangay="<?= h(strtolower($lot['barangay_name'])) ?>"
-                            data-claimant="<?= h(strtolower($lot['current_claimant'] ?? $lot['survey_claimant'] ?? '')) ?>"
+                            data-caseref="<?= h(strtolower((string)($lot['case_reference'] ?? ''))) ?>"
+                            data-lot="<?= h(strtolower((string)($lot['lot_no'] ?? ''))) ?>"
+                            data-survey="<?= h(strtolower((string)($lot['survey_no'] ?? ''))) ?>"
+                            data-barangay="<?= h(strtolower((string)($lot['barangay_name'] ?? ''))) ?>"
+                            data-claimant="<?= h(strtolower((string)($lot['current_claimant'] ?? $lot['survey_claimant'] ?? ''))) ?>"
                             data-details='<?= h(json_encode($lot)); ?>'>
                             <td>
                                 <strong style="color: var(--danger);"><?= h($lot['case_reference'] ?: 'No Case Reference'); ?></strong>

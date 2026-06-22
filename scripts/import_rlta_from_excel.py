@@ -177,9 +177,15 @@ def claimant_sex(row_values: dict[int, str], status_base_col: int) -> str:
     return "/".join(marks)
 
 
-def build_sql(workbook_path: Path) -> tuple[str, int, int]:
+def build_sql(workbook_path: Path, sqlite_db_path: Path, municipality_id: int) -> tuple[str, int, int]:
     if not workbook_path.exists():
         raise FileNotFoundError(f"Workbook not found: {workbook_path}")
+
+    import sqlite3
+    conn = sqlite3.connect(sqlite_db_path)
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, name FROM barangay WHERE municipality_id = ?", (municipality_id,))
+    existing_barangays = {row[1].strip(): row[0] for row in cursor.fetchall()}
 
     with zipfile.ZipFile(workbook_path) as zf:
         shared_strings = load_shared_strings(zf)
@@ -187,14 +193,15 @@ def build_sql(workbook_path: Path) -> tuple[str, int, int]:
 
         barangay_totals: dict[str, float] = defaultdict(float)
         lots: list[dict[str, str | float | int]] = []
+        skipped_sheets: list[str] = []
+        processed_sheets: list[str] = []
 
         for sheet_name, sheet_path in sheets:
-            if sheet_name == "Sheet3":
-                continue
-
             rows = load_sheet_rows(zf, sheet_path, shared_strings)
             header_row_num = find_header_row(rows)
             if not header_row_num:
+                skipped_sheets.append(sheet_name)
+                print(f"[SKIP] Sheet '{sheet_name}': no 'LOT NO.' header found in first 20 rows — not a barangay data sheet.", flush=True)
                 continue
 
             header_map = get_header_map(rows.get(header_row_num, {}))
@@ -217,6 +224,7 @@ def build_sql(workbook_path: Path) -> tuple[str, int, int]:
             remarks_col = header_map.get("REMARKS", 0)
 
             current_case = ""
+            sheet_lot_count = 0
             for row_num in sorted(rows):
                 if row_num <= header_row_num:
                     continue
@@ -226,8 +234,11 @@ def build_sql(workbook_path: Path) -> tuple[str, int, int]:
 
                 lot_no = normalize_text(row_values.get(lot_no_col))
                 area_value = parse_area(row_values.get(area_col))
-                if not lot_no or area_value is None:
+                if not lot_no:
                     continue
+                # Allow lots with no area data — treat as 0.0 so the lot record is still saved
+                if area_value is None:
+                    area_value = 0.0
                 if re.match(r"^(TOTAL|NO\.|LOT NO\.|CASE)$", lot_no, re.I):
                     continue
 
@@ -274,73 +285,41 @@ def build_sql(workbook_path: Path) -> tuple[str, int, int]:
                     }
                 )
                 barangay_totals[sheet_name.strip()] += area_value
+                sheet_lot_count += 1
+
+            print(f"[OK]   Sheet '{sheet_name}': {sheet_lot_count} lot(s) imported.", flush=True)
+            processed_sheets.append(sheet_name)
+
+    print(f"--- Summary: {len(processed_sheets)} sheet(s) processed, {len(skipped_sheets)} sheet(s) skipped. ---", flush=True)
+    for sheet_name in processed_sheets:
+        name = sheet_name.strip()
+        if name not in barangay_totals:
+            barangay_totals[name] = 0.0
 
     barangay_names = sorted(barangay_totals)
-    barangay_ids = {name: index + 1 for index, name in enumerate(barangay_names)}
-
-    sql_parts = [
-        "DROP TABLE IF EXISTS land_use;",
-        "DROP TABLE IF EXISTS lots;",
-        "DROP TABLE IF EXISTS barangay;",
-        """
-CREATE TABLE barangay (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    total_area_sqm REAL NOT NULL DEFAULT 0
-);
-""".strip(),
-        """
-CREATE TABLE lots (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    lot_no TEXT NOT NULL,
-    survey_no TEXT NULL,
-    barangay_id INTEGER NOT NULL,
-    area_sqm REAL NOT NULL DEFAULT 0,
-    status TEXT NOT NULL DEFAULT 'Unapplied',
-    survey_claimant TEXT NULL,
-    tax_declarant TEXT NULL,
-    current_claimant TEXT NULL,
-    claimant_sex TEXT NULL,
-    current_address TEXT NULL,
-    representative TEXT NULL,
-    representative_address TEXT NULL,
-    supporting_docs TEXT NULL,
-    subdivision TEXT NULL,
-    approved_survey_plan TEXT NULL,
-    land_case TEXT NULL,
-    titling_interest TEXT NULL,
-    mode_of_acquisition TEXT NULL,
-    dominant_use TEXT NULL,
-    remarks TEXT NULL,
-    source_sheet TEXT NULL,
-    case_reference TEXT NULL,
-    sheet_row INTEGER NULL,
-    FOREIGN KEY (barangay_id) REFERENCES barangay (id) ON DELETE CASCADE ON UPDATE CASCADE
-);
-""".strip(),
-        """
-CREATE TABLE land_use (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    barangay_id INTEGER NOT NULL,
-    type TEXT NOT NULL,
-    area_sqm REAL NOT NULL DEFAULT 0,
-    FOREIGN KEY (barangay_id) REFERENCES barangay (id) ON DELETE CASCADE ON UPDATE CASCADE
-);
-""".strip(),
-    ]
-
     if not barangay_names:
-        raise ValueError(
-            "No barangay rows were parsed from the Excel file. Please check that the workbook uses the expected RLTA layout."
-        )
+        raise ValueError("No barangay rows were parsed from the Excel file.")
 
-    barangay_values = [
-        f"({barangay_ids[name]}, {sql_quote(name)}, {barangay_totals[name]:.2f})"
-        for name in barangay_names
-    ]
-    sql_parts.append(
-        "INSERT INTO barangay (id, name, total_area_sqm) VALUES\n" + ",\n".join(barangay_values) + ";"
-    )
+    # Upsert barangays
+    barangay_ids = {}
+    sql_parts = []
+    
+    for name in barangay_names:
+        if name in existing_barangays:
+            brgy_id = existing_barangays[name]
+            barangay_ids[name] = brgy_id
+            sql_parts.append(f"UPDATE barangay SET total_area_sqm = {barangay_totals[name]:.2f} WHERE id = {brgy_id};")
+        else:
+            cursor.execute("INSERT INTO barangay (municipality_id, name, total_area_sqm) VALUES (?, ?, ?)",
+                           (municipality_id, name, barangay_totals[name]))
+            brgy_id = cursor.lastrowid
+            barangay_ids[name] = brgy_id
+    conn.commit()
+
+    # Clear old lots for these barangays
+    if barangay_ids:
+        ids_str = ",".join(str(i) for i in barangay_ids.values())
+        sql_parts.append(f"DELETE FROM lots WHERE barangay_id IN ({ids_str});")
 
     columns = (
         "lot_no, survey_no, barangay_id, area_sqm, status, survey_claimant, tax_declarant, "
@@ -390,28 +369,23 @@ CREATE TABLE land_use (
     if batch:
         sql_parts.append(f"INSERT INTO lots ({columns}) VALUES\n" + ",\n".join(batch) + ";")
 
-    if not lots:
-        raise ValueError(
-            "No lot rows were parsed from the Excel file. Please check that the workbook contains RLTA barangay sheets with lot data."
-        )
-
     return "\n\n".join(sql_parts), len(barangay_names), len(lots)
-
 
 def build_argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Import RLTA Excel data into the Land Inventory database.")
     parser.add_argument("workbook", nargs="?", default=str(DEFAULT_WORKBOOK_PATH))
     parser.add_argument("--sqlite-db", required=True, help="Path to the SQLite database file.")
+    parser.add_argument("--municipality-id", required=True, type=int, help="ID of the municipality to import to.")
     return parser
-
 
 def main() -> int:
     args = build_argument_parser().parse_args()
     workbook_path = Path(args.workbook)
     sqlite_db_path = Path(args.sqlite_db)
+    municipality_id = args.municipality_id
 
     try:
-        sql, barangay_count, lot_count = build_sql(workbook_path)
+        sql, barangay_count, lot_count = build_sql(workbook_path, sqlite_db_path, municipality_id)
     except (FileNotFoundError, ValueError, zipfile.BadZipFile) as exc:
         print(str(exc), file=sys.stderr)
         return 1
@@ -430,7 +404,6 @@ def main() -> int:
     print(f"Imported barangays: {barangay_count}")
     print(f"Imported lots: {lot_count}")
     return 0
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

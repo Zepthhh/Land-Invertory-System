@@ -13,16 +13,17 @@ if ($id <= 0) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $municipalityId = (int)($_POST['municipality_id'] ?? 0);
     $name = trim($_POST['name'] ?? '');
     $totalArea = (float) ($_POST['total_area_sqm'] ?? 0);
 
-    if ($name === '' || $totalArea <= 0) {
-        set_flash('error', 'Please provide a valid barangay name and total area.');
+    if ($municipalityId <= 0 || $name === '' || $totalArea <= 0) {
+        set_flash('error', 'Please provide a valid municipality, barangay name, and total area.');
         redirect(app_url('/barangay/edit.php?id=' . $id));
     }
 
-    $stmt = $mysqli->prepare('UPDATE barangay SET name = ?, total_area_sqm = ? WHERE id = ?');
-    $stmt->bind_param('sdi', $name, $totalArea, $id);
+    $stmt = $mysqli->prepare('UPDATE barangay SET municipality_id = ?, name = ?, total_area_sqm = ? WHERE id = ?');
+    $stmt->bind_param('isdi', $municipalityId, $name, $totalArea, $id);
     $stmt->execute();
     $stmt->close();
 
@@ -31,7 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     redirect(app_url('/barangay/index.php'));
 }
 
-$stmt = $mysqli->prepare('SELECT id, name, total_area_sqm FROM barangay WHERE id = ?');
+$stmt = $mysqli->prepare('SELECT id, municipality_id, name, total_area_sqm FROM barangay WHERE id = ?');
 $stmt->bind_param('i', $id);
 $stmt->execute();
 $result = $stmt->get_result();

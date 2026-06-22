@@ -46,9 +46,19 @@ function get_flash(): ?array
     return $flash;
 }
 
+function fetch_municipalities(object $mysqli): array
+{
+    $sql = 'SELECT id, name FROM municipality ORDER BY name ASC';
+    $result = $mysqli->query($sql);
+    return $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
+}
+
 function fetch_barangays(object $mysqli): array
 {
-    $sql = 'SELECT id, name, total_area_sqm FROM barangay ORDER BY name ASC';
+    $sql = 'SELECT b.id, b.municipality_id, b.name, b.total_area_sqm, m.name AS municipality_name 
+            FROM barangay b 
+            LEFT JOIN municipality m ON b.municipality_id = m.id 
+            ORDER BY m.name ASC, b.name ASC';
     $result = $mysqli->query($sql);
 
     return $result ? $result->fetch_all(MYSQLI_ASSOC) : [];

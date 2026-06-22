@@ -123,8 +123,59 @@ $lotFormValues = [
 $lotSubmitLabel = 'Save Lot';
 $lotShowBack = false;
 
-// Query selecting ALL database columns to support detail popup
-$lotsResult = $mysqli->query("
+$searchQuery = trim($_GET['q'] ?? '');
+$filterStatus = $_GET['status'] ?? '';
+$filterMunicipalityId = (int)($_GET['municipality_id'] ?? 0);
+$filterBarangayId = (int)($_GET['barangay_id'] ?? 0);
+$page = max(1, (int)($_GET['page'] ?? 1));
+$perPage = 50;
+
+$whereClauses = [];
+$params = [];
+$types = '';
+
+if ($searchQuery !== '') {
+    $whereClauses[] = '(l.lot_no LIKE ? OR l.survey_no LIKE ? OR l.current_claimant LIKE ? OR l.survey_claimant LIKE ?)';
+    $likeQuery = '%' . $searchQuery . '%';
+    $params = array_merge($params, [$likeQuery, $likeQuery, $likeQuery, $likeQuery]);
+    $types .= 'ssss';
+}
+if ($filterStatus !== '') {
+    $whereClauses[] = 'l.status = ?';
+    $params[] = $filterStatus;
+    $types .= 's';
+}
+if ($filterMunicipalityId > 0) {
+    $whereClauses[] = 'b.municipality_id = ?';
+    $params[] = $filterMunicipalityId;
+    $types .= 'i';
+}
+if ($filterBarangayId > 0) {
+    $whereClauses[] = 'l.barangay_id = ?';
+    $params[] = $filterBarangayId;
+    $types .= 'i';
+}
+
+$whereSql = '';
+if (!empty($whereClauses)) {
+    $whereSql = 'WHERE ' . implode(' AND ', $whereClauses);
+}
+
+// Count total
+$countQuery = "SELECT COUNT(*) AS total FROM lots l INNER JOIN barangay b ON b.id = l.barangay_id $whereSql";
+$stmt = $mysqli->prepare($countQuery);
+if ($types !== '') {
+    $stmt->bind_param($types, ...$params);
+}
+$stmt->execute();
+$totalFiltered = (int)$stmt->get_result()->fetch_assoc()['total'];
+$stmt->close();
+
+$totalPages = max(1, ceil($totalFiltered / $perPage));
+if ($page > $totalPages) $page = $totalPages;
+$offset = ($page - 1) * $perPage;
+
+$sql = "
     SELECT 
         l.id, l.lot_no, l.survey_no, b.name AS barangay_name, b.id AS barangay_id, l.area_sqm, l.status,
         l.survey_claimant, l.tax_declarant, l.current_claimant, l.claimant_sex, l.current_address,
@@ -133,9 +184,18 @@ $lotsResult = $mysqli->query("
         l.source_sheet, l.case_reference, l.sheet_row
     FROM lots l
     INNER JOIN barangay b ON b.id = l.barangay_id
+    $whereSql
     ORDER BY l.id DESC
-");
+    LIMIT ? OFFSET ?
+";
+$stmt = $mysqli->prepare($sql);
+$limitTypes = $types . 'ii';
+$limitParams = array_merge($params, [$perPage, $offset]);
+$stmt->bind_param($limitTypes, ...$limitParams);
+$stmt->execute();
+$lotsResult = $stmt->get_result();
 $lots = $lotsResult ? $lotsResult->fetch_all(MYSQLI_ASSOC) : [];
+$stmt->close();
 
 require_once __DIR__ . '/../includes/header.php';
 ?>
@@ -178,31 +238,66 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="actions-spread" style="margin-bottom: 15px;">
             <h2 class="panel-title" style="margin:0;">Lot List</h2>
             <div style="display:flex;gap:10px;align-items:center;">
-                <span class="table-counter" id="lotCounter"><?= count($lots) ?> total lots</span>
+                <span class="table-counter" id="lotCounter"><?= $totalFiltered ?> total matching lots</span>
                 <?php if ($lots): ?>
                     <button class="btn btn-export" onclick="exportLotsCSV()" style="padding: 7px 14px; font-size: 0.82rem; min-height: 34px;">⬇ Export CSV</button>
                 <?php endif; ?>
             </div>
         </div>
 
-        <!-- Live Filter Bar -->
-        <div class="table-filter-bar">
-            <input type="text" id="filterText" placeholder="🔍  Search lot no, survey, barangay, claimant..." oninput="filterLots()" autocomplete="off">
-            <select id="filterStatus" onchange="filterLots()" autocomplete="off">
-                <option value="" selected>All Statuses</option>
+        <!-- Filter Bar -->
+        <form method="GET" action="<?= h(app_url('/lots/index.php')) ?>" class="table-filter-bar" style="display:flex; gap:10px; margin-bottom: 15px; align-items: center;">
+            <input type="text" name="q" value="<?= h($searchQuery) ?>" placeholder="🔍  Search lot no, survey, claimant..." style="flex:1;">
+            <select name="status" onchange="this.form.submit()">
+                <option value="">All Statuses</option>
                 <?php foreach ($lotStatuses as $s): ?>
-                    <option value="<?= h($s) ?>"><?= h(get_status_label($s)) ?></option>
+                    <option value="<?= h($s) ?>" <?= $s === $filterStatus ? 'selected' : '' ?>><?= h(get_status_label($s)) ?></option>
                 <?php endforeach; ?>
             </select>
-            <select id="filterBarangay" onchange="filterLots()" autocomplete="off">
-                <option value="" selected>All Barangays</option>
+            <?php
+            $municipalitiesRes = $mysqli->query("SELECT id, name FROM municipality ORDER BY name ASC");
+            $municipalities = $municipalitiesRes ? $municipalitiesRes->fetch_all(MYSQLI_ASSOC) : [];
+            ?>
+            <select name="municipality_id" id="munFilter" onchange="filterBarangayDropdown(); this.form.submit();">
+                <option value="">All Municipalities</option>
+                <?php foreach ($municipalities as $m): ?>
+                    <option value="<?= h((string)$m['id']); ?>" <?= (string)$m['id'] === (string)$filterMunicipalityId ? 'selected' : '' ?>><?= h($m['name']); ?></option>
+                <?php endforeach; ?>
+            </select>
+            <select name="barangay_id" id="brgyFilter" onchange="this.form.submit()">
+                <option value="">All Barangays</option>
                 <?php foreach ($barangays as $b): ?>
-                    <option value="<?= h((string)$b['id']); ?>"><?= h($b['name']); ?></option>
+                    <option value="<?= h((string)$b['id']); ?>" data-mun-id="<?= h((string)$b['municipality_id']); ?>" <?= (string)$b['id'] === (string)$filterBarangayId ? 'selected' : '' ?>><?= h($b['name']); ?></option>
                 <?php endforeach; ?>
             </select>
-        </div>
-
+            <button type="submit" class="btn btn-secondary">Search</button>
+        </form>
         <div class="table-wrap">
+<script>
+// Filter barangay dropdown based on selected municipality
+function filterBarangayDropdown() {
+    const munId = document.getElementById('munFilter').value;
+    const brgySelect = document.getElementById('brgyFilter');
+    let hasSelectedVisible = false;
+    
+    Array.from(brgySelect.options).forEach(opt => {
+        if (opt.value === "") return; // Skip "All Barangays"
+        const optMunId = opt.getAttribute('data-mun-id');
+        const show = !munId || optMunId === munId;
+        opt.style.display = show ? '' : 'none';
+        
+        // Deselect if currently selected option becomes hidden
+        if (opt.selected && !show) {
+            brgySelect.value = "";
+        }
+        if (opt.selected && show) {
+            hasSelectedVisible = true;
+        }
+    });
+}
+// Run on load
+document.addEventListener('DOMContentLoaded', filterBarangayDropdown);
+</script>
             <table class="table-sticky" id="lotsTable" style="min-width: 700px;">
                 <thead>
                     <tr>
@@ -223,13 +318,14 @@ require_once __DIR__ . '/../includes/header.php';
                             if ($lot['status'] === 'Conflict') $statusClass = 'status-conflict';
                         ?>
                             <tr class="lot-row <?= h($statusClass) ?>" onclick="openViewModalFromRow(this, event)"
-                                data-lot="<?= h(strtolower($lot['lot_no'])) ?>"
-                                data-survey="<?= h(strtolower($lot['survey_no'])) ?>"
-                                data-barangay="<?= h(strtolower($lot['barangay_name'])) ?>"
+                                data-lot="<?= h(strtolower((string)($lot['lot_no'] ?? ''))) ?>"
+                                data-survey="<?= h(strtolower((string)($lot['survey_no'] ?? ''))) ?>"
+                                data-barangay="<?= h(strtolower((string)($lot['barangay_name'] ?? ''))) ?>"
                                 data-barangayid="<?= h((string)($lot['barangay_id'] ?? '')) ?>"
-                                data-claimant="<?= h(strtolower($lot['current_claimant'] ?? $lot['survey_claimant'] ?? '')) ?>"
+                                data-claimant="<?= h(strtolower((string)($lot['current_claimant'] ?? $lot['survey_claimant'] ?? ''))) ?>"
                                 data-status="<?= h($lot['status']) ?>"
-                                data-details='<?= h(json_encode($lot)); ?>'>
+                                data-id="<?= (int)$lot['id'] ?>"
+                                style="cursor:pointer;">
                                 <td style="padding: 10px 12px;"><strong><?= h($lot['lot_no']); ?></strong></td>
                                 <td style="padding: 10px 12px; font-size: 0.85rem;"><?= h($lot['survey_no']); ?></td>
                                 <td style="padding: 10px 12px;"><?= h($lot['barangay_name']); ?></td>
@@ -243,7 +339,7 @@ require_once __DIR__ . '/../includes/header.php';
                                 </td>
                                 <td style="padding: 8px 10px;">
                                     <div class="inline-actions" style="gap: 5px;">
-                                        <button type="button" class="btn btn-secondary" onclick="openViewModal(this)" style="padding: 5px 10px; font-size: 0.8rem; min-height: 30px; min-width: 50px;">View</button>
+                                        <button type="button" class="btn btn-secondary" onclick="event.stopPropagation(); openViewById(<?= (int)$lot['id'] ?>)" style="padding: 5px 10px; font-size: 0.8rem; min-height: 30px; min-width: 50px;">View</button>
                                         <?php if ($currentUserRole !== 'Viewer'): ?>
                                             <a class="btn btn-secondary" href="<?= h(app_url('/lots/edit.php?id=' . $lot['id'])); ?>" style="padding: 5px 10px; font-size: 0.8rem; min-height: 30px; min-width: 46px;">Edit</a>
                                             <button class="btn btn-danger" type="button" onclick="showConfirm(<?= (int)$lot['id'] ?>, '<?= h(addslashes($lot['lot_no'])) ?>')" style="padding: 5px 10px; font-size: 0.8rem; min-height: 30px; min-width: 56px;">Delete</button>
@@ -292,89 +388,299 @@ require_once __DIR__ . '/../includes/header.php';
                 </tbody>
             </table>
         </div>
+
+        <div class="pagination" style="margin-top: 20px; display: flex; gap: 10px; justify-content: center; align-items: center;">
+            <?php if ($page > 1): ?>
+                <a href="?page=<?= $page - 1 ?>&q=<?= urlencode($searchQuery) ?>&status=<?= urlencode($filterStatus) ?>&barangay_id=<?= $filterBarangayId ?>" class="btn btn-secondary">Previous</a>
+            <?php endif; ?>
+            <span style="font-size: 0.9rem; color: var(--text-muted);">Page <?= $page ?> of <?= $totalPages ?></span>
+            <?php if ($page < $totalPages): ?>
+                <a href="?page=<?= $page + 1 ?>&q=<?= urlencode($searchQuery) ?>&status=<?= urlencode($filterStatus) ?>&barangay_id=<?= $filterBarangayId ?>" class="btn btn-secondary">Next</a>
+            <?php endif; ?>
+        </div>
     </div>
 </section>
 
-<!-- Detailed View Modal -->
-<div id="viewModal" class="modal-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: var(--glass-blur);">
-    <div class="modal-card" style="background: rgba(18, 27, 22, 0.95); border: 1px solid var(--panel-border); border-radius: 20px; width: 90%; max-width: 750px; box-shadow: 0 20px 50px rgba(0,0,0,0.6); overflow: hidden; display: flex; flex-direction: column; max-height: 85vh;">
-        <div class="modal-header" style="padding: 20px; border-bottom: 1px solid var(--panel-border); display: flex; justify-content: space-between; align-items: center;">
-            <h3 style="margin: 0; color: #fff; font-size: 1.3rem; font-weight: 700; display: flex; align-items: center; gap: 8px;">
-                🔎 Lot Details: <span id="m-title-lot-no" style="color: var(--primary);"></span>
-            </h3>
-            <button type="button" class="btn btn-secondary" onclick="closeViewModal()" style="min-height: auto; padding: 6px 12px; font-size: 0.85rem;">Close</button>
+<!-- Lot Detail Card Modal -->
+<style>
+#lotCardOverlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background: rgba(0,0,0,0.6);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+}
+#lotCardOverlay.open { display: flex; }
+#lotCard {
+    background: linear-gradient(145deg, rgba(15,24,20,0.98) 0%, rgba(10,20,15,0.98) 100%);
+    border: 1px solid rgba(16,185,129,0.3);
+    border-radius: 24px;
+    width: 100%;
+    max-width: 720px;
+    max-height: 88vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 0 0 1px rgba(16,185,129,0.1), 0 30px 80px rgba(0,0,0,0.7), 0 0 60px rgba(16,185,129,0.05);
+    overflow: hidden;
+    animation: cardIn 0.25s cubic-bezier(0.175,0.885,0.32,1.275) forwards;
+}
+@keyframes cardIn {
+    from { opacity:0; transform: scale(0.92) translateY(20px); }
+    to   { opacity:1; transform: scale(1)   translateY(0); }
+}
+.lc-header {
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid rgba(16,185,129,0.2);
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    background: linear-gradient(90deg, rgba(16,185,129,0.08) 0%, transparent 70%);
+}
+.lc-title-block { flex:1; min-width:0; }
+.lc-lot-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: #fff;
+    font-size: 1.3rem;
+    font-weight: 800;
+    padding: 6px 18px;
+    border-radius: 50px;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+    box-shadow: 0 4px 15px rgba(16,185,129,0.35);
+}
+.lc-subtitle { color: rgba(255,255,255,0.55); font-size: 0.85rem; }
+.lc-close-btn {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 50%;
+    width: 36px; height: 36px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    color: #fff;
+    font-size: 1rem;
+    flex-shrink: 0;
+    transition: background 0.2s;
+}
+.lc-close-btn:hover { background: rgba(239,68,68,0.25); border-color: rgba(239,68,68,0.4); }
+.lc-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 14px 24px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    overflow-x: auto;
+}
+.lc-tab {
+    padding: 8px 16px;
+    border-radius: 10px 10px 0 0;
+    border: none;
+    background: transparent;
+    color: rgba(255,255,255,0.5);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+}
+.lc-tab:hover { color: rgba(255,255,255,0.85); }
+.lc-tab.active {
+    color: #10b981;
+    border-bottom-color: #10b981;
+    background: rgba(16,185,129,0.06);
+}
+.lc-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px 24px;
+    color: #fff;
+}
+.lc-pane { display: none; }
+.lc-pane.active { display: block; }
+.lc-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+}
+.lc-field {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 12px;
+    padding: 12px 14px;
+}
+.lc-field.wide { grid-column: 1 / -1; }
+.lc-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #10b981;
+    display: block;
+    margin-bottom: 4px;
+}
+.lc-value {
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: #f0fdf4;
+    word-break: break-word;
+}
+.lc-value.muted { color: rgba(255,255,255,0.35); font-style: italic; }
+.lc-value.big { font-size: 1.15rem; font-weight: 700; color: #6ee7b7; }
+.lc-value.purple { color: #c4b5fd; }
+.lc-value.red { color: #fca5a5; }
+.lc-footer {
+    padding: 14px 24px;
+    border-top: 1px solid rgba(255,255,255,0.07);
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    background: rgba(0,0,0,0.2);
+}
+.lot-row { cursor: pointer; }
+.lot-row:hover td { background: rgba(16,185,129,0.05); }
+</style>
+
+<div id="lotCardOverlay" onclick="if(event.target===this)closeLotCard()">
+    <div id="lotCard">
+        <div class="lc-header">
+            <div class="lc-title-block">
+                <div class="lc-lot-badge">📋 <span id="lc-lot-no"></span></div>
+                <div class="lc-subtitle" id="lc-subtitle"></div>
+            </div>
+            <button class="lc-close-btn" onclick="closeLotCard()" title="Close">✕</button>
         </div>
-        <div class="modal-body" style="padding: 24px; overflow-y: auto; color: #fff;">
-            <!-- Tabs in modal -->
-            <div class="modal-tabs" style="display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 1px solid var(--panel-border); padding-bottom: 10px; overflow-x: auto; white-space: nowrap;">
-                <button type="button" id="modal-tab-btn-basic" class="btn btn-primary" onclick="switchModalTab('basic')" style="padding: 6px 12px; min-height: auto; font-size: 0.85rem; flex-shrink: 0;">Technical Specs</button>
-                <button type="button" id="modal-tab-btn-claimant" class="btn btn-secondary" onclick="switchModalTab('claimant')" style="padding: 6px 12px; min-height: auto; font-size: 0.85rem; flex-shrink: 0;">Claimants & GAD</button>
-                <button type="button" id="modal-tab-btn-legal" class="btn btn-secondary" onclick="switchModalTab('legal')" style="padding: 6px 12px; min-height: auto; font-size: 0.85rem; flex-shrink: 0;">Legal & Files</button>
-            </div>
-            
-            <!-- Modal Pane: Basic -->
-            <div id="modal-pane-basic" class="modal-pane-content-pane">
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
-                    <div><span style="color: var(--text-muted); font-size: 0.82rem; display: block;">Lot Number</span><strong id="m-lot-no" style="font-size: 1.05rem;"></strong></div>
-                    <div><span style="color: var(--text-muted); font-size: 0.82rem; display: block;">Survey Number</span><strong id="m-survey-no" style="font-size: 1.05rem;"></strong></div>
-                    <div><span style="color: var(--text-muted); font-size: 0.82rem; display: block;">Barangay</span><span id="m-barangay" style="font-weight: 500;"></span></div>
-                    <div><span style="color: var(--text-muted); font-size: 0.82rem; display: block;">Area (sqm)</span><span id="m-area" style="font-weight: 700; color: var(--primary);"></span></div>
-                    <div><span style="color: var(--text-muted); font-size: 0.82rem; display: block;">Subdivision</span><span id="m-subdivision"></span></div>
-                    <div><span style="color: var(--text-muted); font-size: 0.82rem; display: block;">Dominant Use</span><span id="m-dominant-use"></span></div>
-                    <div><span style="color: var(--text-muted); font-size: 0.82rem; display: block;">Source Sheet</span><span id="m-source-sheet" style="font-size: 0.88rem; color: #a78bfa;"></span></div>
-                    <div><span style="color: var(--text-muted); font-size: 0.82rem; display: block;">Sheet Excel Row</span><span id="m-sheet-row" style="font-size: 0.88rem;"></span></div>
+        <div class="lc-tabs">
+            <button class="lc-tab active" onclick="switchLcTab('specs',this)">📐 Specs</button>
+            <button class="lc-tab" onclick="switchLcTab('claimants',this)">👤 Claimants</button>
+            <button class="lc-tab" onclick="switchLcTab('legal',this)">⚖️ Legal</button>
+        </div>
+        <div class="lc-body">
+            <!-- Specs -->
+            <div class="lc-pane active" id="lc-pane-specs">
+                <div class="lc-grid">
+                    <div class="lc-field">
+                        <span class="lc-label">Lot Number</span>
+                        <div class="lc-value big" id="lc-s-lot"></div>
+                    </div>
+                    <div class="lc-field">
+                        <span class="lc-label">Survey No.</span>
+                        <div class="lc-value" id="lc-s-survey"></div>
+                    </div>
+                    <div class="lc-field">
+                        <span class="lc-label">Barangay</span>
+                        <div class="lc-value" id="lc-s-brgy"></div>
+                    </div>
+                    <div class="lc-field">
+                        <span class="lc-label">Area (sqm)</span>
+                        <div class="lc-value big" id="lc-s-area"></div>
+                    </div>
+                    <div class="lc-field">
+                        <span class="lc-label">Status</span>
+                        <div id="lc-s-status"></div>
+                    </div>
+                    <div class="lc-field">
+                        <span class="lc-label">Dominant Use</span>
+                        <div class="lc-value" id="lc-s-use"></div>
+                    </div>
+                    <div class="lc-field">
+                        <span class="lc-label">Subdivision</span>
+                        <div class="lc-value" id="lc-s-sub"></div>
+                    </div>
+                    <div class="lc-field">
+                        <span class="lc-label">Source Sheet</span>
+                        <div class="lc-value purple" id="lc-s-sheet"></div>
+                    </div>
                 </div>
             </div>
-            
-            <!-- Modal Pane: Claimant -->
-            <div id="modal-pane-claimant" class="modal-pane-content-pane" style="display:none;">
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
-                    <div><span style="color: var(--text-muted); font-size: 0.82rem; display: block;">Current Claimant</span><strong id="m-current-claimant" style="font-size: 1.05rem;"></strong></div>
-                    <div><span style="color: var(--text-muted); font-size: 0.82rem; display: block;">Claimant Sex (GAD)</span><span id="m-claimant-sex" style="font-weight: 600;"></span></div>
-                    <div style="grid-column: span 2;"><span style="color: var(--text-muted); font-size: 0.82rem; display: block;">Current Address</span><span id="m-current-address"></span></div>
-                    <div><span style="color: var(--text-muted); font-size: 0.82rem; display: block;">Original Survey Claimant</span><span id="m-survey-claimant"></span></div>
-                    <div><span style="color: var(--text-muted); font-size: 0.82rem; display: block;">Tax Declarant</span><span id="m-tax-declarant"></span></div>
-                    <div><span style="color: var(--text-muted); font-size: 0.82rem; display: block;">Representative</span><span id="m-representative"></span></div>
-                    <div><span style="color: var(--text-muted); font-size: 0.82rem; display: block;">Representative Address</span><span id="m-representative-address"></span></div>
+            <!-- Claimants -->
+            <div class="lc-pane" id="lc-pane-claimants">
+                <div class="lc-grid">
+                    <div class="lc-field">
+                        <span class="lc-label">Current Claimant</span>
+                        <div class="lc-value" id="lc-c-current"></div>
+                    </div>
+                    <div class="lc-field">
+                        <span class="lc-label">Sex (GAD)</span>
+                        <div class="lc-value" id="lc-c-sex"></div>
+                    </div>
+                    <div class="lc-field wide">
+                        <span class="lc-label">Current Address</span>
+                        <div class="lc-value" id="lc-c-addr"></div>
+                    </div>
+                    <div class="lc-field">
+                        <span class="lc-label">Survey Claimant</span>
+                        <div class="lc-value" id="lc-c-survey"></div>
+                    </div>
+                    <div class="lc-field">
+                        <span class="lc-label">Tax Declarant</span>
+                        <div class="lc-value" id="lc-c-tax"></div>
+                    </div>
+                    <div class="lc-field">
+                        <span class="lc-label">Representative</span>
+                        <div class="lc-value" id="lc-c-rep"></div>
+                    </div>
+                    <div class="lc-field">
+                        <span class="lc-label">Rep. Address</span>
+                        <div class="lc-value" id="lc-c-repaddr"></div>
+                    </div>
                 </div>
             </div>
-            
-            <!-- Modal Pane: Legal & Files -->
-            <div id="modal-pane-legal" class="modal-pane-content-pane" style="display:none;">
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px;">
-                    <div><span style="color: var(--text-muted); font-size: 0.82rem; display: block;">Status</span><span id="m-status"></span></div>
-                    <div><span style="color: var(--text-muted); font-size: 0.82rem; display: block;">Mode of Acquisition</span><span id="m-acquisition"></span></div>
-                    <div><span style="color: var(--text-muted); font-size: 0.82rem; display: block;">Titling Interest</span><span id="m-interest"></span></div>
-                    <div><span style="color: var(--text-muted); font-size: 0.82rem; display: block;">Land Case Status</span><span id="m-land-case"></span></div>
-                    <div><span style="color: var(--text-muted); font-size: 0.82rem; display: block;">Case Reference</span><span id="m-case-ref" style="color: #fca5a5;"></span></div>
-                    
-                    <div style="grid-column: span 2;">
-                        <span style="color: var(--text-muted); font-size: 0.82rem; display: block;">Legal/Operational Remarks</span>
-                        <p id="m-remarks" style="background: rgba(0,0,0,0.3); padding: 12px; border-radius: 10px; margin-top: 6px; white-space: pre-wrap; font-size: 0.92rem; line-height: 1.5; border: 1px solid var(--panel-border);"></p>
+            <!-- Legal -->
+            <div class="lc-pane" id="lc-pane-legal">
+                <div class="lc-grid">
+                    <div class="lc-field">
+                        <span class="lc-label">Mode of Acquisition</span>
+                        <div class="lc-value" id="lc-l-acq"></div>
                     </div>
-                    
-                    <div style="background: rgba(255,255,255,0.03); border: 1px dashed rgba(255,255,255,0.1); padding: 15px; border-radius: 12px; display: flex; flex-direction: column; justify-content: center; min-height: 80px;">
-                        <strong style="font-size: 0.88rem; display: block; margin-bottom: 6px;">📁 Supporting Document:</strong>
-                        <div id="m-doc-link"></div>
+                    <div class="lc-field">
+                        <span class="lc-label">Titling Interest</span>
+                        <div class="lc-value" id="lc-l-int"></div>
                     </div>
-                    <div style="background: rgba(255,255,255,0.03); border: 1px dashed rgba(255,255,255,0.1); padding: 15px; border-radius: 12px; display: flex; flex-direction: column; justify-content: center; min-height: 80px;">
-                        <strong style="font-size: 0.88rem; display: block; margin-bottom: 6px;">🗺️ Approved Survey Plan:</strong>
-                        <div id="m-plan-link"></div>
+                    <div class="lc-field">
+                        <span class="lc-label">Land Case</span>
+                        <div class="lc-value" id="lc-l-case"></div>
+                    </div>
+                    <div class="lc-field">
+                        <span class="lc-label">Case Reference</span>
+                        <div class="lc-value red" id="lc-l-ref"></div>
+                    </div>
+                    <div class="lc-field wide">
+                        <span class="lc-label">Remarks</span>
+                        <div class="lc-value" id="lc-l-remarks" style="white-space:pre-wrap;line-height:1.5;"></div>
+                    </div>
+                    <div class="lc-field wide" id="lc-l-docs-wrap">
+                        <span class="lc-label">Documents</span>
+                        <div id="lc-l-docs" style="margin-top:6px;"></div>
                     </div>
                 </div>
             </div>
         </div>
-        <div class="modal-footer" style="padding: 15px 20px; border-top: 1px solid var(--panel-border); background: rgba(0,0,0,0.25); display: flex; justify-content: flex-end; gap: 10px;">
+        <div class="lc-footer">
             <?php if ($currentUserRole !== 'Viewer'): ?>
-                <a id="m-edit-btn" href="#" class="btn btn-primary" style="padding: 8px 16px; min-height: auto; font-size: 0.85rem;">Edit Lot</a>
+            <a id="lc-edit-btn" href="#" class="btn btn-primary" style="padding:8px 18px;min-height:auto;font-size:0.85rem;">✏️ Edit Lot</a>
             <?php endif; ?>
-            <button type="button" class="btn btn-secondary" onclick="closeViewModal()" style="padding: 8px 16px; min-height: auto; font-size: 0.85rem;">Close</button>
+            <button type="button" class="btn btn-secondary" onclick="closeLotCard()" style="padding:8px 18px;min-height:auto;font-size:0.85rem;">Close</button>
         </div>
     </div>
 </div>
 
 <script>
-// Toggle Add Lot form panel
+// ── Server-generated lot data — keyed by lot ID ──────────────────────────────
+<?php
+$lotsById = [];
+foreach ($lots as $lot) { $lotsById[(int)$lot['id']] = $lot; }
+?>
+const LOT_DATA = <?= json_encode($lotsById, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
+const APP_URL  = <?= json_encode(rtrim(app_url(), '/'), JSON_UNESCAPED_SLASHES) ?>;
+
 function toggleAddForm() {
     const panel = document.getElementById('addLotFormPanel');
     const btn = document.getElementById('toggleFormBtn');
@@ -389,41 +695,119 @@ function toggleAddForm() {
     }
 }
 
-// Reset filters and run on page load to ensure table is in sync
-document.addEventListener('DOMContentLoaded', function() {
-    document.getElementById('filterText').value = '';
-    document.getElementById('filterStatus').value = '';
-    document.getElementById('filterBarangay').value = '';
-    filterLots();
-});
-
 function filterLots() {
-    const text = document.getElementById('filterText').value.toLowerCase();
-    const status = document.getElementById('filterStatus').value;
-    const barangayId = document.getElementById('filterBarangay').value;
-    const rows = document.querySelectorAll('#lotsBody .lot-row');
-    const noResults = document.getElementById('noResultsRow');
-    let visible = 0;
+    // Deprecated: Filtering is now server-side.
+}
 
-    rows.forEach(row => {
-        const lotMatch = row.dataset.lot.includes(text)
-            || row.dataset.survey.includes(text)
-            || row.dataset.barangay.includes(text)
-            || row.dataset.claimant.includes(text);
-        const statusMatch = !status || row.dataset.status === status;
-        const brgyMatch = !barangayId || row.dataset.barangayid === barangayId;
+// ── Card View Functions ───────────────────────────────────────────────────────
+function fill(id, val, fallback) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const v = (val || '').toString().trim();
+    el.textContent = v || (fallback !== undefined ? fallback : '—');
+    if (!v) el.classList.add('muted'); else el.classList.remove('muted');
+}
 
-        const show = lotMatch && statusMatch && brgyMatch;
-        row.style.display = show ? '' : 'none';
-        const confirmId = row.querySelector('[onclick]')?.getAttribute('onclick')?.match(/\d+/)?.[0];
-        if (confirmId) {
-            document.getElementById('confirm-' + confirmId).style.display = 'none';
-        }
-        if (show) visible++;
-    });
+function openViewById(id) {
+    const d = LOT_DATA[id];
+    if (!d) { console.warn('Lot ID not found:', id); return; }
 
-    noResults.style.display = (visible === 0 && rows.length > 0) ? '' : 'none';
-    document.getElementById('lotCounter').textContent = visible + ' of <?= count($lots) ?> lots';
+    // Header
+    document.getElementById('lc-lot-no').textContent = 'Lot ' + (d.lot_no || id);
+    document.getElementById('lc-subtitle').textContent =
+        (d.barangay_name || '') + (d.survey_no ? ' · ' + d.survey_no : '');
+
+    // Specs tab
+    fill('lc-s-lot',    d.lot_no);
+    fill('lc-s-survey', d.survey_no);
+    fill('lc-s-brgy',   d.barangay_name);
+    const area = parseFloat(d.area_sqm) || 0;
+    document.getElementById('lc-s-area').textContent =
+        area.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' sqm';
+    fill('lc-s-use',    d.dominant_use);
+    fill('lc-s-sub',    d.subdivision);
+    fill('lc-s-sheet',  d.source_sheet);
+
+    // Status badge in specs
+    const statusBadges = {
+        'Titled':   { bg:'#10b981', icon:'✅' },
+        'Applied':  { bg:'#3b82f6', icon:'📄' },
+        'Conflict': { bg:'#ef4444', icon:'⚠️' },
+        'Unapplied':{ bg:'#f59e0b', icon:'🔍' }
+    };
+    const sb = statusBadges[d.status] || { bg:'#6b7280', icon:'📌' };
+    const statusLabel = d.status === 'Conflict' ? 'With Conflict' : (d.status || 'Unknown');
+    document.getElementById('lc-s-status').innerHTML =
+        '<span style="display:inline-flex;align-items:center;gap:5px;background:' + sb.bg +
+        '22;border:1px solid ' + sb.bg + '55;color:' + sb.bg +
+        ';padding:4px 12px;border-radius:20px;font-size:0.82rem;font-weight:700;">' +
+        sb.icon + ' ' + statusLabel + '</span>';
+
+    // Claimants tab
+    fill('lc-c-current',  d.current_claimant);
+    fill('lc-c-sex',      d.claimant_sex);
+    fill('lc-c-addr',     d.current_address);
+    fill('lc-c-survey',   d.survey_claimant);
+    fill('lc-c-tax',      d.tax_declarant);
+    fill('lc-c-rep',      d.representative);
+    fill('lc-c-repaddr',  d.representative_address);
+
+    // Legal tab
+    fill('lc-l-acq',     d.mode_of_acquisition);
+    fill('lc-l-int',     d.titling_interest);
+    fill('lc-l-case',    d.land_case);
+    fill('lc-l-ref',     d.case_reference);
+    fill('lc-l-remarks', d.remarks, 'No remarks recorded.');
+
+    // Documents
+    let docsHtml = '';
+    if (d.supporting_docs) {
+        const fn = d.supporting_docs.split('/').pop();
+        docsHtml += '<a href="' + APP_URL + '/' + d.supporting_docs + '" target="_blank" class="btn btn-secondary" style="font-size:0.8rem;padding:5px 10px;min-height:auto;margin-right:8px;">📥 Document (' + fn + ')</a>';
+    }
+    if (d.approved_survey_plan) {
+        const fn = d.approved_survey_plan.split('/').pop();
+        docsHtml += '<a href="' + APP_URL + '/' + d.approved_survey_plan + '" target="_blank" class="btn btn-secondary" style="font-size:0.8rem;padding:5px 10px;min-height:auto;">🗺️ Survey Plan (' + fn + ')</a>';
+    }
+    document.getElementById('lc-l-docs').innerHTML = docsHtml ||
+        '<span style="color:rgba(255,255,255,0.35);font-size:0.85rem;font-style:italic;">No documents uploaded</span>';
+
+    // Edit button
+    const editBtn = document.getElementById('lc-edit-btn');
+    if (editBtn) editBtn.href = APP_URL + '/lots/edit.php?id=' + d.id;
+
+    // Open card
+    switchLcTab('specs', document.querySelector('.lc-tab'));
+    const overlay = document.getElementById('lotCardOverlay');
+    // Re-trigger animation
+    const card = document.getElementById('lotCard');
+    card.style.animation = 'none';
+    card.offsetHeight; // reflow
+    card.style.animation = '';
+    overlay.classList.add('open');
+    document.body.style.overflow = 'hidden';
+}
+
+function openViewModalFromRow(row, event) {
+    if (event.target.closest('button') || event.target.closest('a')
+        || event.target.closest('.confirm-row') || event.target.closest('.confirm-message')) {
+        return;
+    }
+    const id = parseInt(row.dataset.id, 10);
+    if (id) openViewById(id);
+}
+
+function closeLotCard() {
+    document.getElementById('lotCardOverlay').classList.remove('open');
+    document.body.style.overflow = '';
+}
+
+function switchLcTab(tabId, btn) {
+    document.querySelectorAll('.lc-pane').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.lc-tab').forEach(b => b.classList.remove('active'));
+    const pane = document.getElementById('lc-pane-' + tabId);
+    if (pane) pane.classList.add('active');
+    if (btn) btn.classList.add('active');
 }
 
 function exportLotsCSV() {
@@ -448,105 +832,17 @@ function hideConfirm(id) {
     document.getElementById('confirm-' + id).classList.remove('active');
 }
 
-// Modal View Functions
-function openViewModal(element) {
-    const row = element.tagName === 'TR' ? element : element.closest('tr');
-    const details = JSON.parse(row.dataset.details);
-    const appUrlBase = '<?= h(app_url()); ?>';
+document.addEventListener('DOMContentLoaded', () => {
+    // Move card overlay to <body> so it escapes the .app-shell stacking context
+    // (same technique used by the logo modal — see includes/header.php)
+    document.body.appendChild(document.getElementById('lotCardOverlay'));
 
-    // Populate fields
-    document.getElementById('m-title-lot-no').textContent = details.lot_no;
-    document.getElementById('m-lot-no').textContent = details.lot_no || '—';
-    document.getElementById('m-survey-no').textContent = details.survey_no || '—';
-    document.getElementById('m-barangay').textContent = details.barangay_name || '—';
-    document.getElementById('m-area').textContent = parseFloat(details.area_sqm).toLocaleString('en-US', {minimumFractionDigits: 2}) + ' sqm';
-    document.getElementById('m-subdivision').textContent = details.subdivision || '—';
-    document.getElementById('m-dominant-use').textContent = details.dominant_use || '—';
-    document.getElementById('m-source-sheet').textContent = details.source_sheet || '—';
-    document.getElementById('m-sheet-row').textContent = details.sheet_row || '—';
+    // Filtering is now handled server-side
+});
 
-    document.getElementById('m-current-claimant').textContent = details.current_claimant || '—';
-    document.getElementById('m-claimant-sex').textContent = details.claimant_sex || '—';
-    document.getElementById('m-current-address').textContent = details.current_address || '—';
-    document.getElementById('m-survey-claimant').textContent = details.survey_claimant || '—';
-    document.getElementById('m-tax-declarant').textContent = details.tax_declarant || '—';
-    document.getElementById('m-representative').textContent = details.representative || '—';
-    document.getElementById('m-representative-address').textContent = details.representative_address || '—';
-
-    // Map status label with icons
-    const statusLabel = details.status === 'Conflict' ? 'With land claims and conflicts' : details.status;
-    let statusClass = 'badge amber';
-    let statusIcon = '🔍';
-    if (details.status === 'Titled') { statusClass = 'badge green'; statusIcon = '✅'; }
-    else if (details.status === 'Applied') { statusClass = 'badge blue'; statusIcon = '📄'; }
-    else if (details.status === 'Conflict') { statusClass = 'badge red'; statusIcon = '⚠️'; }
-    document.getElementById('m-status').innerHTML = `<span class="${statusClass}">${statusIcon} ${statusLabel}</span>`;
-    
-    document.getElementById('m-acquisition').textContent = details.mode_of_acquisition || '—';
-    document.getElementById('m-interest').textContent = details.titling_interest || '—';
-    document.getElementById('m-land-case').textContent = details.land_case || '—';
-    document.getElementById('m-case-ref').textContent = details.case_reference || '—';
-    document.getElementById('m-remarks').textContent = details.remarks || 'No remarks recorded for this lot.';
-
-    // Documents
-    const docLinkDiv = document.getElementById('m-doc-link');
-    if (details.supporting_docs) {
-        const fileBase = details.supporting_docs.split('/').pop();
-        docLinkDiv.innerHTML = `<a href="${appUrlBase}/${details.supporting_docs}" target="_blank" class="btn btn-secondary" style="font-size: 0.8rem; padding: 6px 10px; min-height:auto;">📥 Download Document (${fileBase})</a>`;
-    } else {
-        docLinkDiv.innerHTML = '<span style="color: var(--text-muted); font-size:0.85rem;">No files uploaded</span>';
-    }
-
-    const planLinkDiv = document.getElementById('m-plan-link');
-    if (details.approved_survey_plan) {
-        const fileBase = details.approved_survey_plan.split('/').pop();
-        planLinkDiv.innerHTML = `<a href="${appUrlBase}/${details.approved_survey_plan}" target="_blank" class="btn btn-secondary" style="font-size: 0.8rem; padding: 6px 10px; min-height:auto;">📥 Download Survey Plan (${fileBase})</a>`;
-    } else {
-        planLinkDiv.innerHTML = '<span style="color: var(--text-muted); font-size:0.85rem;">No plan uploaded</span>';
-    }
-
-    // Set Edit button url
-    const editBtn = document.getElementById('m-edit-btn');
-    if (editBtn) {
-        editBtn.href = `${appUrlBase}/lots/edit.php?id=${details.id}`;
-    }
-
-    // Display modal
-    switchModalTab('basic');
-    document.getElementById('viewModal').style.display = 'flex';
-}
-
-function closeViewModal() {
-    document.getElementById('viewModal').style.display = 'none';
-}
-
-function openViewModalFromRow(row, event) {
-    if (event.target.closest('button') || event.target.closest('a') || event.target.closest('.confirm-row') || event.target.closest('.confirm-message')) {
-        return;
-    }
-    openViewModal(row);
-}
-
-function switchModalTab(tabId) {
-    document.querySelectorAll('.modal-pane-content-pane').forEach(p => p.style.display = 'none');
-    document.querySelectorAll('.modal-tabs .btn').forEach(b => {
-        b.classList.remove('btn-primary');
-        b.classList.add('btn-secondary');
-    });
-
-    document.getElementById('modal-pane-' + tabId).style.display = 'block';
-    const activeBtn = document.getElementById('modal-tab-btn-' + tabId);
-    activeBtn.classList.remove('btn-secondary');
-    activeBtn.classList.add('btn-primary');
-}
-
-// Close modal when clicking outside card
-window.onclick = function(event) {
-    const modal = document.getElementById('viewModal');
-    if (event.target === modal) {
-        closeViewModal();
-    }
-}
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeLotCard();
+});
 </script>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

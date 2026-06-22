@@ -7,16 +7,17 @@ require_once __DIR__ . '/../includes/functions.php';
 require_role(['Admin', 'Editor']);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $municipalityId = (int)($_POST['municipality_id'] ?? 0);
     $name = trim($_POST['name'] ?? '');
     $totalArea = (float) ($_POST['total_area_sqm'] ?? 0);
 
-    if ($name === '' || $totalArea <= 0) {
-        set_flash('error', 'Please provide a barangay name and a valid total area.');
+    if ($municipalityId <= 0 || $name === '' || $totalArea <= 0) {
+        set_flash('error', 'Please provide a municipality, barangay name, and a valid total area.');
         redirect(app_url('/barangay/create.php'));
     }
 
-    $stmt = $mysqli->prepare('INSERT INTO barangay (name, total_area_sqm) VALUES (?, ?)');
-    $stmt->bind_param('sd', $name, $totalArea);
+    $stmt = $mysqli->prepare('INSERT INTO barangay (municipality_id, name, total_area_sqm) VALUES (?, ?, ?)');
+    $stmt->bind_param('isd', $municipalityId, $name, $totalArea);
     $stmt->execute();
     $stmt->close();
 
@@ -30,6 +31,7 @@ $pageDescription = 'Create a barangay record using the database structure alread
 $barangayFormAction = app_url('/barangay/create.php');
 $barangayFormValues = [
     'id' => '',
+    'municipality_id' => '',
     'name' => '',
     'total_area_sqm' => '',
 ];

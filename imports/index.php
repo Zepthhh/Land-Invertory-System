@@ -51,7 +51,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($inlineAlert === null) {
-        $importResult = run_excel_import($xlsxPath, $dbFile);
+        $municipalityId = (int)($_POST['municipality_id'] ?? 0);
+        if ($municipalityId <= 0) {
+            $inlineAlert = ['type' => 'error', 'message' => 'Please select a valid Municipality.'];
+        }
+    }
+
+    if ($inlineAlert === null) {
+        $importResult = run_excel_import($xlsxPath, $dbFile, $municipalityId);
 
         @unlink($xlsxPath);
         $importOutput = $importResult['output'];
@@ -105,6 +112,9 @@ $barangaySummaryResult = $mysqli->query("
 ");
 $barangaySummary = $barangaySummaryResult ? $barangaySummaryResult->fetch_all(MYSQLI_ASSOC) : [];
 
+$municipalitiesResult = $mysqli->query("SELECT * FROM municipality ORDER BY name ASC");
+$municipalities = $municipalitiesResult ? $municipalitiesResult->fetch_all(MYSQLI_ASSOC) : [];
+
 require_once __DIR__ . '/../includes/header.php';
 ?>
 <?php if ($inlineAlert): ?>
@@ -149,6 +159,16 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
 
     <form method="post" enctype="multipart/form-data" id="importForm">
+        <div class="form-group" style="margin-bottom: 20px;">
+            <label for="municipality_id" style="display:block; margin-bottom: 8px; font-weight: 600;">Select Municipality for this import:</label>
+            <select name="municipality_id" id="municipality_id" class="form-control" required style="width: 100%; max-width: 400px; padding: 12px; border-radius: 8px; background: rgba(0,0,0,0.2); border: 1px solid var(--panel-border); color: #fff;">
+                <option value="">-- Choose Municipality --</option>
+                <?php foreach ($municipalities as $mun): ?>
+                    <option value="<?= h((string)$mun['id']) ?>"><?= h($mun['name']) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+
         <div class="drag-drop-zone" id="dropZone">
             <input type="file" id="excel_file" name="excel_file" accept=".xlsx" required>
             <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

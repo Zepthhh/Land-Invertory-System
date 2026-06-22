@@ -29,10 +29,19 @@ DROP TABLE IF EXISTS `land_use`;
 DROP TABLE IF EXISTS `lots`;
 DROP TABLE IF EXISTS `barangay`;
 
+CREATE TABLE `municipality` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `name` VARCHAR(150) NOT NULL
+);
+
 CREATE TABLE `barangay` (
     `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `municipality_id` INT NOT NULL DEFAULT 1,
     `name` VARCHAR(150) NOT NULL,
-    `total_area_sqm` DOUBLE NOT NULL DEFAULT 0
+    `total_area_sqm` DOUBLE NOT NULL DEFAULT 0,
+    CONSTRAINT `fk_barangay_municipality`
+        FOREIGN KEY (`municipality_id`) REFERENCES `municipality` (`id`)
+        ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 CREATE TABLE `lots` (
@@ -75,11 +84,14 @@ CREATE TABLE `land_use` (
         ON DELETE CASCADE ON UPDATE CASCADE
 );
 
-INSERT INTO `barangay` (`name`, `total_area_sqm`) VALUES
-('San Isidro', 150000.00),
-('San Roque', 125000.00),
-('Santa Lucia', 98000.00),
-('Mabini', 110500.00);
+INSERT INTO `municipality` (`name`) VALUES
+('Digos'), ('Bansalan'), ('Matanao'), ('Padada'), ('Hagonoy'), ('Magsaysay'), ('Sta. Cruz');
+
+INSERT INTO `barangay` (`municipality_id`, `name`, `total_area_sqm`) VALUES
+(1, 'San Isidro', 150000.00),
+(1, 'San Roque', 125000.00),
+(2, 'Santa Lucia', 98000.00),
+(3, 'Mabini', 110500.00);
 
 INSERT INTO `lots` (`lot_no`, `survey_no`, `barangay_id`, `area_sqm`, `status`) VALUES
 ('Lot-001', 'SRV-1001', 1, 12000.00, 'Unapplied'),

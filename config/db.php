@@ -128,6 +128,19 @@ class SQLiteMySQLiEquivalent
 }
 
 // Config variables for compatibility
+session_start();
+
+// Enable CORS for React frontend (development and production)
+header("Access-Control-Allow-Origin: *");
+header("Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE");
+header("Access-Control-Allow-Headers: Content-Type, Authorization");
+
+// Handle preflight OPTIONS request
+if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
+    http_response_code(200);
+    exit();
+}
+
 $host = '127.0.0.1';
 $port = 3306;
 $dbname = 'Land Inventory';
@@ -141,10 +154,16 @@ $mysqli = new SQLiteMySQLiEquivalent($dbFile);
 
 if ($needsInit && !$mysqli->connect_errno) {
     $schema = [
+        "CREATE TABLE IF NOT EXISTS municipality (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL
+        );",
         "CREATE TABLE IF NOT EXISTS barangay (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            municipality_id INTEGER NOT NULL DEFAULT 1,
             name TEXT NOT NULL,
-            total_area_sqm REAL NOT NULL DEFAULT 0
+            total_area_sqm REAL NOT NULL DEFAULT 0,
+            FOREIGN KEY (municipality_id) REFERENCES municipality (id) ON DELETE CASCADE ON UPDATE CASCADE
         );",
         "CREATE TABLE IF NOT EXISTS lots (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -185,4 +204,7 @@ if ($needsInit && !$mysqli->connect_errno) {
     foreach ($schema as $sql) {
         $mysqli->query($sql);
     }
+    
+    // Seed municipalities
+    $mysqli->query("INSERT INTO municipality (name) VALUES ('Digos'), ('Bansalan'), ('Matanao'), ('Padada'), ('Hagonoy'), ('Magsaysay'), ('Sta. Cruz');");
 }

@@ -129,7 +129,7 @@ require_once __DIR__ . '/../includes/header.php';
                         ?>
                             <tr class="lu-row"
                                 data-brgy="<?= h((string)$entry['barangay_id']); ?>"
-                                data-name="<?= h(strtolower($entry['barangay_name'])); ?>"
+                                data-name="<?= h(strtolower((string)($entry['barangay_name'] ?? ''))); ?>"
                                 data-type="<?= h($entry['type']); ?>">
                                 <td><strong><?= h($entry['barangay_name']); ?></strong></td>
                                 <td><?= h($entry['type']); ?></td>

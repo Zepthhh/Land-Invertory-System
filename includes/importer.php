@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-function run_excel_import(string $uploadedPath, string $sqliteDbPath): array
+function run_excel_import(string $uploadedPath, string $sqliteDbPath, int $municipalityId): array
 {
     $python = 'python';
     $scriptPath = __DIR__ . '/../scripts/import_rlta_from_excel.py';
@@ -11,11 +11,12 @@ function run_excel_import(string $uploadedPath, string $sqliteDbPath): array
     }
 
     $command = sprintf(
-        '%s %s %s --sqlite-db %s 2>&1',
+        '%s %s %s --sqlite-db %s --municipality-id %d 2>&1',
         escapeshellcmd($python),
         escapeshellarg($scriptPath),
         escapeshellarg($uploadedPath),
-        escapeshellarg($sqliteDbPath)
+        escapeshellarg($sqliteDbPath),
+        $municipalityId
     );
 
     $output = [];

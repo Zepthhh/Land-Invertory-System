@@ -22,8 +22,10 @@ $summaryResult = $mysqli->query("
         COALESCE(u.community_area, 0) AS community_area,
         COALESCE(u.total_land_use, 0) AS total_land_use,
         (b.total_area_sqm - COALESCE(u.total_land_use, 0)) AS area_after_land_use,
-        ((b.total_area_sqm - COALESCE(u.total_land_use, 0)) - COALESCE(l.total_lot_area, 0)) AS remaining_balance
+        ((b.total_area_sqm - COALESCE(u.total_land_use, 0)) - COALESCE(l.total_lot_area, 0)) AS remaining_balance,
+        m.name AS municipality_name
     FROM barangay b
+    JOIN municipality m ON b.municipality_id = m.id
     LEFT JOIN (
         SELECT barangay_id, COUNT(*) AS total_lots, SUM(area_sqm) AS total_lot_area
         FROM lots
@@ -38,22 +40,45 @@ $summaryResult = $mysqli->query("
         FROM land_use
         GROUP BY barangay_id
     ) u ON u.barangay_id = b.id
-    ORDER BY b.name ASC
+    ORDER BY m.name ASC, b.name ASC
 ");
 $barangaySummaries = $summaryResult ? $summaryResult->fetch_all(MYSQLI_ASSOC) : [];
 
-$dashboardCards = [
-    'Barangays' => (string) count_table_rows($mysqli, 'barangay'),
-    'Lots' => (string) count_table_rows($mysqli, 'lots'),
-    'Land Use Entries' => (string) count_table_rows($mysqli, 'land_use'),
-    'Total Barangay Area' => format_number(sum_table_area($mysqli, 'barangay', 'total_area_sqm')) . ' sqm',
-];
+// Calculate Municipality Summaries
+$municipalitySummaries = [];
+foreach ($barangaySummaries as $row) {
+    $mName = $row['municipality_name'];
+    if (!isset($municipalitySummaries[$mName])) {
+        $municipalitySummaries[$mName] = [
+            'name' => $mName,
+            'total_area' => 0.0,
+            'total_lots' => 0,
+            'remaining_balance' => 0.0,
+            'barangay_count' => 0
+        ];
+    }
+    $municipalitySummaries[$mName]['total_area'] += (float)$row['total_area_sqm'];
+    $municipalitySummaries[$mName]['total_lots'] += (int)$row['total_lots'];
+    $municipalitySummaries[$mName]['remaining_balance'] += (float)$row['remaining_balance'];
+    $municipalitySummaries[$mName]['barangay_count']++;
+}
+
+// Fetch Municipality Barangay Counts for Cards
+$munCountResult = $mysqli->query("
+    SELECT m.id, m.name, COUNT(b.id) AS barangay_count
+    FROM municipality m
+    LEFT JOIN barangay b ON m.id = b.municipality_id
+    GROUP BY m.id
+    ORDER BY m.name ASC
+");
+$municipalityCards = $munCountResult ? $munCountResult->fetch_all(MYSQLI_ASSOC) : [];
 
 // Fetch Recent Lots
 $recentLotsResult = $mysqli->query("
-    SELECT l.lot_no, l.survey_no, b.name AS barangay_name, l.area_sqm, l.status
+    SELECT l.lot_no, l.survey_no, b.name AS barangay_name, m.name AS municipality_name, l.area_sqm, l.status
     FROM lots l
     INNER JOIN barangay b ON b.id = l.barangay_id
+    INNER JOIN municipality m ON b.municipality_id = m.id
     ORDER BY l.id DESC
     LIMIT 5
 ");
@@ -110,23 +135,25 @@ require_once __DIR__ . '/includes/header.php';
     </form>
 </div>
 
-<section class="cards">
-    <?php foreach ($dashboardCards as $label => $value): ?>
-        <div class="card">
-            <div class="card-label"><?= h($label); ?></div>
-            <div class="card-value count-up" data-target="<?= h($value); ?>"><?= h($value); ?></div>
+<h2 class="panel-title" style="margin-top: 0px;">Barangays per Municipality</h2>
+<section class="cards" style="margin-bottom: 25px;">
+    <?php foreach ($municipalityCards as $mun): ?>
+        <div class="card" onclick="window.location='<?= h(app_url('/barangay/index.php?mun_id=' . $mun['id'])); ?>'" style="cursor: pointer; transition: transform 0.2s, box-shadow 0.2s;" onmouseover="this.style.transform='translateY(-5px)';this.style.boxShadow='0 10px 25px rgba(16,185,129,0.2)'" onmouseout="this.style.transform='translateY(0)';this.style.boxShadow='0 4px 15px rgba(0,0,0,0.2)'">
+            <div class="card-label" style="font-size: 0.9rem;"><?= h($mun['name']); ?></div>
+            <div class="card-value count-up" data-target="<?= h((string)$mun['barangay_count']); ?>"><?= h((string)$mun['barangay_count']); ?></div>
+            <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 5px;">Barangays</div>
         </div>
     <?php endforeach; ?>
 </section>
 
 <!-- OFFLINE SVG CHARTS PANEL GRID -->
-<section class="grid-2" style="margin-bottom: 24px;">
+<section style="margin-bottom: 24px;">
     <!-- Chart Panel: Lot Status (SVG Donut) -->
     <div class="panel" style="margin-bottom: 0; display: flex; flex-direction: column;">
         <h2 class="panel-title">Lot Status Distribution</h2>
-        <div style="display: flex; flex: 1; align-items: center; justify-content: center; gap: 30px; flex-wrap: wrap; padding: 10px 0;">
+        <div style="display: flex; flex: 1; align-items: center; justify-content: flex-start; gap: 40px; flex-wrap: wrap; padding: 20px 10px;">
             <!-- SVG Donut Chart -->
-            <div style="position: relative; width: 150px; height: 150px;">
+            <div style="position: relative; width: 160px; height: 160px; flex-shrink: 0;">
                 <svg viewBox="0 0 100 100" width="100%" height="100%">
                     <circle cx="50" cy="50" r="40" fill="transparent" stroke="rgba(255,255,255,0.03)" stroke-width="12"></circle>
                     <?php
@@ -145,7 +172,6 @@ require_once __DIR__ . '/includes/header.php';
                         foreach ($statusData as $status => $data) {
                             $percent = $data['count'] / $totalLotsCount;
                             $strokeLength = $percent * $circumference;
-                            $strokeOffset = $circumference - $strokeLength + $currentOffset;
                             
                             if ($data['count'] > 0) {
                                 ?>
@@ -153,82 +179,74 @@ require_once __DIR__ . '/includes/header.php';
                                         fill="transparent" 
                                         stroke="<?= $colors[$status]; ?>" 
                                         stroke-width="12" 
-                                        stroke-dasharray="<?= $circumference; ?>" 
-                                        stroke-dashoffset="<?= $strokeOffset; ?>"
+                                        stroke-dasharray="<?= $strokeLength; ?> <?= $circumference; ?>" 
+                                        stroke-dashoffset="<?= -$currentOffset; ?>"
                                         transform="rotate(-90 50 50)"
                                         style="transition: stroke-dashoffset 0.8s ease;">
                                 </circle>
                                 <?php
                             }
-                            $currentOffset -= $strokeLength;
+                            $currentOffset += $strokeLength;
                         }
                     }
                     ?>
                 </svg>
                 <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center;">
-                    <span style="font-size: 1.6rem; font-weight: 800; color: #fff;"><?= $totalLotsCount; ?></span>
-                    <span style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase;">Total Lots</span>
+                    <span style="font-size: 1.8rem; font-weight: 800; color: #fff;"><?= number_format($totalLotsCount); ?></span>
+                    <span style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px;">Total Lots</span>
                 </div>
             </div>
 
-            <!-- Legend with detailed counts -->
-            <div style="display: flex; flex-direction: column; gap: 8px; flex: 1; min-width: 180px;">
-                <?php foreach ($statusData as $status => $data):
-                    $pct = $totalLotsCount > 0 ? ($data['count'] / $totalLotsCount) * 100 : 0.0;
-                ?>
-                    <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.88rem;">
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background-color: <?= $colors[$status] ?>; box-shadow: 0 0 6px <?= $colors[$status] ?>;"></span>
-                            <span style="color: #e2e8f0; font-weight: 500;"><?= h($status); ?></span>
-                        </div>
-                        <span style="color: var(--text-muted); font-size: 0.8rem; font-weight: 600;">
-                            <?= $data['count'] ?> (<?= format_percent($pct) ?>)
-                        </span>
+            <!-- Premium Data Cards -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 16px; flex: 1;">
+                <?php foreach ($statusData as $status => $data): ?>
+                    <div style="background: rgba(0,0,0,0.25); padding: 14px 18px; border-radius: 12px; border-left: 4px solid <?= $colors[$status] ?>; border-top: 1px solid rgba(255,255,255,0.03); border-right: 1px solid rgba(255,255,255,0.03); border-bottom: 1px solid rgba(255,255,255,0.03);">
+                        <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px; margin-bottom: 4px;"><?= h($status); ?></div>
+                        <div style="font-size: 1.4rem; font-weight: 700; color: #f1f5f9;"><?= number_format((float)$data['count']) ?></div>
                     </div>
                 <?php endforeach; ?>
             </div>
         </div>
     </div>
+</section>
 
-    <!-- Chart Panel: Land Use (SVG Horizontal Breakdown) -->
-    <div class="panel" style="margin-bottom: 0;">
-        <h2 class="panel-title">Land Use Category Breakdown</h2>
-        <div style="display: flex; flex-direction: column; gap: 12px; padding: 10px 0;">
-            <?php if ($landUseBreakdown): ?>
-                <?php foreach (array_slice($landUseBreakdown, 0, 4) as $lu): 
-                    $pct = $totalLandUseArea > 0 ? ($lu['total_area'] / $totalLandUseArea) * 100 : 0.0;
-                ?>
-                    <div>
-                        <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 4px;">
-                            <span style="font-weight: 600; color: #f1f5f9;"><?= h($lu['type']); ?></span>
-                            <span style="color: var(--text-muted);"><?= format_number((float)$lu['total_area']) ?> sqm (<?= format_percent($pct) ?>)</span>
-                        </div>
-                        <div style="width: 100%; height: 8px; background: rgba(255,255,255,0.03); border-radius: 4px; overflow: hidden; border: 1px solid rgba(255,255,255,0.05);">
-                            <div style="width: <?= min(100, max(0, $pct)) ?>%; height: 100%; background: linear-gradient(90deg, #10b981, #059669); box-shadow: 0 0 8px rgba(16, 185, 129, 0.4); border-radius: 4px;"></div>
-                        </div>
-                    </div>
-                <?php endforeach; ?>
-                <?php if (count($landUseBreakdown) > 4): 
-                    $otherArea = 0.0;
-                    foreach (array_slice($landUseBreakdown, 4) as $o) { $otherArea += (float)$o['total_area']; }
-                    $pct = $totalLandUseArea > 0 ? ($otherArea / $totalLandUseArea) * 100 : 0.0;
-                ?>
-                    <div>
-                        <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 4px;">
-                            <span style="font-weight: 600; color: #f1f5f9;">Others</span>
-                            <span style="color: var(--text-muted);"><?= format_number($otherArea) ?> sqm (<?= format_percent($pct) ?>)</span>
-                        </div>
-                        <div style="width: 100%; height: 8px; background: rgba(255,255,255,0.03); border-radius: 4px; overflow: hidden; border: 1px solid rgba(255,255,255,0.05);">
-                            <div style="width: <?= min(100, max(0, $pct)) ?>%; height: 100%; background: linear-gradient(90deg, #9ca3af, #6b7280); border-radius: 4px;"></div>
-                        </div>
-                    </div>
+<section class="panel">
+    <h2 class="panel-title">Municipality Summary</h2>
+    <div class="table-wrap">
+        <table class="table-compact">
+            <thead>
+                <tr>
+                    <th>Municipality</th>
+                    <th>Barangays</th>
+                    <th>Total Area<br><small>(sqm)</small></th>
+                    <th>Total Lots</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php if ($municipalitySummaries): ?>
+                    <?php foreach ($municipalitySummaries as $row): 
+                        $total_area = $row['total_area'];
+                        $remaining = $row['remaining_balance'];
+                        $utilized = $total_area - $remaining;
+                        $percent_utilized = ($total_area > 0) ? ($utilized / $total_area) * 100 : 0;
+                        $progress_class = '';
+                        if ($percent_utilized > 90) $progress_class = 'danger';
+                        elseif ($percent_utilized > 75) $progress_class = 'warning';
+                    ?>
+                        <tr class="clickable-row" onclick="openSummaryModal('municipality', null, '<?= h(addslashes($row['name'])); ?>')">
+                            <td><strong><?= h($row['name']); ?></strong></td>
+                            <td><?= h((string)$row['barangay_count']); ?></td>
+                            <td><?= format_number($total_area); ?></td>
+                            <td><?= h((string)$row['total_lots']); ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                <?php else: ?>
+                    <tr>
+                        <td colspan="4">No municipality data available.</td>
+                    </tr>
                 <?php endif; ?>
-            <?php else: ?>
-                <div class="empty-state-fancy" style="padding: 20px 0;">
-                    <p style="font-size:0.9rem;">No land use category entries found yet.</p>
-                </div>
-            <?php endif; ?>
-        </div>
+            </tbody>
+        </table>
     </div>
 </section>
 
@@ -238,14 +256,11 @@ require_once __DIR__ . '/includes/header.php';
         <table class="table-compact">
             <thead>
                 <tr>
+                    <th>Municipality</th>
                     <th>Barangay</th>
                     <th>Total Area<br><small>(sqm)</small></th>
                     <th>Lots</th>
                     <th>Lot Area<br><small>(sqm)</small></th>
-                    <th>Infra. Deductions<br><small>Alley/Road/Canal</small></th>
-                    <th>Community Deductions<br><small>Church/School/Plaza</small></th>
-                    <th>Total Deductions<br><small>(sqm)</small></th>
-                    <th>Remaining Balance<br><small>(sqm)</small></th>
                 </tr>
             </thead>
             <tbody>
@@ -260,31 +275,17 @@ require_once __DIR__ . '/includes/header.php';
                         if ($percent_utilized > 90) $progress_class = 'danger';
                         elseif ($percent_utilized > 75) $progress_class = 'warning';
                     ?>
-                        <tr>
+                        <tr class="clickable-row" onclick="openSummaryModal('barangay', <?= (int)$row['id'] ?>)">
+                            <td><?= h($row['municipality_name']); ?></td>
                             <td><strong><?= h($row['name']); ?></strong></td>
                             <td><?= format_number($total_area); ?></td>
                             <td><?= h((string) $row['total_lots']); ?></td>
                             <td><?= format_number((float) $row['total_lot_area']); ?></td>
-                            <td><?= format_number((float) $row['infrastructure_area']); ?></td>
-                            <td><?= format_number((float) $row['community_area']); ?></td>
-                            <td><?= format_number((float) $row['total_land_use']); ?></td>
-                            <td style="min-width: 200px;">
-                                <div style="font-weight: 600; color: <?= $remaining < 0 ? 'var(--danger)' : 'var(--success)' ?>;">
-                                    <?= format_number($remaining); ?> sqm
-                                </div>
-                                <div class="progress-container">
-                                    <div class="progress-bar <?= $progress_class ?>" style="width: <?= min(100, max(0, $percent_utilized)) ?>%;"></div>
-                                </div>
-                                <div class="progress-text">
-                                    <span>Used: <?= format_percent($percent_utilized) ?></span>
-                                    <span>Free: <?= format_percent(100 - $percent_utilized) ?></span>
-                                </div>
-                            </td>
                         </tr>
                     <?php endforeach; ?>
                 <?php else: ?>
                     <tr>
-                        <td colspan="8">No barangay records found yet.</td>
+                        <td colspan="5">No barangay records found yet.</td>
                     </tr>
                 <?php endif; ?>
             </tbody>
@@ -300,6 +301,7 @@ require_once __DIR__ . '/includes/header.php';
                 <tr>
                     <th>Lot No</th>
                     <th>Survey No</th>
+                    <th>Municipality</th>
                     <th>Barangay</th>
                     <th>Area (sqm)</th>
                     <th>Status</th>
@@ -311,6 +313,7 @@ require_once __DIR__ . '/includes/header.php';
                         <tr>
                             <td><?= h($lot['lot_no']); ?></td>
                             <td><?= h($lot['survey_no']); ?></td>
+                            <td><?= h($lot['municipality_name']); ?></td>
                             <td><?= h($lot['barangay_name']); ?></td>
                             <td><?= format_number((float) $lot['area_sqm']); ?></td>
                             <td>
@@ -322,7 +325,7 @@ require_once __DIR__ . '/includes/header.php';
                     <?php endforeach; ?>
                 <?php else: ?>
                     <tr>
-                        <td colspan="5">No lots registered yet.</td>
+                        <td colspan="6">No lots registered yet.</td>
                     </tr>
                 <?php endif; ?>
             </tbody>
@@ -370,5 +373,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.count-up').forEach(el => observer.observe(el));
 });
 </script>
+
+<?php require_once __DIR__ . '/includes/modal_summary.php'; ?>
 
 <?php require_once __DIR__ . '/includes/footer.php'; ?>

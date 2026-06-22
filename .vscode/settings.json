@@ -3,5 +3,10 @@
     // This silences false-positive errors caused by MySQL-specific syntax
     // (backtick identifiers, AUTO_INCREMENT, ENUM, ENGINE=InnoDB, etc.)
     // that T-SQL does not recognise.
-    "sql.dialect": "mysql"
+    "sql.dialect": "mysql",
+    "files.associations": {
+        "*.sql": "mysql"
+    },
+    // Ignore Tailwind CSS custom at-rules warnings
+    "css.lint.unknownAtRules": "ignore"
 }
