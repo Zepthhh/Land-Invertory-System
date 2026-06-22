@@ -20,7 +20,7 @@ try {
     $types = '';
 
     if ($search !== '') {
-        $whereClauses[] = "(l.lot_no LIKE ? OR l.survey_no LIKE ? OR l.claimant LIKE ? OR l.tenant LIKE ?)";
+        $whereClauses[] = "(l.lot_no LIKE ? OR l.survey_no LIKE ? OR l.current_claimant LIKE ? OR l.survey_claimant LIKE ?)";
         $searchParam = "%{$search}%";
         array_push($params, $searchParam, $searchParam, $searchParam, $searchParam);
         $types .= 'ssss';
@@ -46,6 +46,9 @@ try {
     // Count total rows
     $countSql = "SELECT COUNT(*) as total FROM lots l $whereSql";
     $stmtCount = $mysqli->prepare($countSql);
+    if (!$stmtCount) {
+        throw new Exception("Failed to prepare count query: " . $mysqli->error);
+    }
     if (!empty($params)) {
         $stmtCount->bind_param($types, ...$params);
     }
@@ -71,6 +74,9 @@ try {
     $types .= 'ii';
 
     $stmt = $mysqli->prepare($sql);
+    if (!$stmt) {
+        throw new Exception("Failed to prepare data query: " . $mysqli->error);
+    }
     $stmt->bind_param($types, ...$params);
     $stmt->execute();
     $lots = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);

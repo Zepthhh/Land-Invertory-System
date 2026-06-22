@@ -30,19 +30,29 @@ if %errorlevel% equ 0 (
     set PORT=8000
 )
 
+:: Get Local IP Address for network sharing
+for /f "tokens=2 delims=:" %%A in ('ipconfig ^| findstr /i "IPv4 Address"') do (
+    set LOCAL_IP=%%A
+)
+:: Remove leading spaces from IP
+set LOCAL_IP=%LOCAL_IP: =%
+
 echo  PHP Version:
 php --version | findstr /i "PHP"
 echo.
 echo  Starting server at: http://localhost:%PORT%
+if defined LOCAL_IP (
+    echo  Network URL:        http://%LOCAL_IP%:%PORT%
+)
 echo  Project folder:     %~dp0
 echo.
 echo  Press Ctrl+C to stop the server.
 echo  =====================================================
 echo.
 
-:: Wait a moment then open browser
+:: Wait a moment then open browser on the host machine
 timeout /t 1 /nobreak >nul
 start "" "http://localhost:%PORT%"
 
-:: Start PHP built-in server
-php -S localhost:%PORT% -t "%~dp0"
+:: Start PHP built-in server on 0.0.0.0 to allow access from other devices on Wi-Fi
+php -S 0.0.0.0:%PORT% -t "%~dp0"
